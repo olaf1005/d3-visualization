@@ -74,7 +74,7 @@ class HistogramPlot extends PlotWithAxis<
     // Set the data.
     this._data = data ?? { data: [] };
     this._layout = layout ?? {
-      orientation: "horizontal",
+      orientation: "vertical",
     };
     this._container = container;
 
@@ -122,7 +122,7 @@ class HistogramPlot extends PlotWithAxis<
         this.layout.axes?.x?.maximum ?? extentValues[1] ?? 0,
       ])
       .nice()
-      .range(this.isHorizontal() ? scaleRangeX : scaleRangeY);
+      .range(this.isHorizontal() ? scaleRangeY : scaleRangeX);
 
     const total = this.total2Normalize();
     const extentFreq = d3.extent(this.data.data, (d) => d.frequency / total);
@@ -131,10 +131,10 @@ class HistogramPlot extends PlotWithAxis<
       .scaleLinear()
       .domain([0, this.layout.axes?.y?.maximum ?? extentFreq[1] ?? 0])
       .nice()
-      .range(this.isHorizontal() ? scaleRangeY : scaleRangeX);
+      .range(this.isHorizontal() ? scaleRangeX : scaleRangeY);
 
-    this.scaleX = this.isHorizontal() ? scaleValues : scaleFreq;
-    this.scaleY = this.isHorizontal() ? scaleFreq : scaleValues;
+    this.scaleX = this.isHorizontal() ? scaleFreq : scaleValues;
+    this.scaleY = this.isHorizontal() ? scaleValues : scaleFreq;
   }
 
   /** Initializes the elements for the histogram plot. */
@@ -202,32 +202,32 @@ class HistogramPlot extends PlotWithAxis<
     const strokeWidth = (d: IHistogramBin) => d.style?.strokeWidth ?? 0;
 
     const x = (d: IHistogramBin) =>
-      (this.isHorizontal() ? scaleValues(d.min) + 1 : scaleValues(0)) +
+      (this.isHorizontal() ? scaleValues(0) : scaleValues(d.min) + 1) +
       strokeWidth(d) / 2;
 
     const y = (d: IHistogramBin) =>
-      (this.isHorizontal() ? scaleFreq(frequency(d)) : scaleFreq(d.max) + 1) +
+      (this.isHorizontal() ? scaleFreq(d.max) + 1 : scaleFreq(frequency(d))) +
       strokeWidth(d) / 2;
 
     const width = (d: IHistogramBin) =>
       this.isHorizontal()
-        ? Math.max(
+        ? scaleValues(frequency(d)) - scaleValues(0) - strokeWidth(d)
+        : Math.max(
             1,
             scaleValues(d.max) - scaleValues(d.min) - strokeWidth(d) - 1
-          )
-        : scaleValues(frequency(d)) - scaleValues(0) - strokeWidth(d);
+          );
 
     const height = (d: IHistogramBin) =>
       this.isHorizontal()
-        ? scaleFreq(0) - scaleFreq(frequency(d)) - strokeWidth(d)
-        : Math.max(1, scaleFreq(d.min) - scaleFreq(d.max) - strokeWidth(d) - 1);
+        ? Math.max(1, scaleFreq(d.min) - scaleFreq(d.max) - strokeWidth(d) - 1)
+        : scaleFreq(0) - scaleFreq(frequency(d)) - strokeWidth(d);
 
     const offset = "1em";
 
     const topX = (d: IHistogramBin) =>
-      x(d) + width(d) / (this.isHorizontal() ? 2 : 1);
+      x(d) + width(d) / (this.isHorizontal() ? 1 : 2);
     const topY = (d: IHistogramBin) =>
-      y(d) + (this.isHorizontal() ? 0 : height(d) / 2);
+      y(d) + (this.isHorizontal() ? height(d) / 2 : 0);
 
     const onClickBin = (e: PointerEvent, bin: IHistogramBin) => {
       switch (e.detail) {
@@ -263,10 +263,14 @@ class HistogramPlot extends PlotWithAxis<
       ?.append("title")
       .text((d) =>
         [
-          `${d.min} ≤ x < ${d.max}`,
-          `${this.layout.normalize ? "Normalized: " : ""}${d3.format(",")(
-            frequency(d)
-          )}`,
+          `${d.min} ≤ ${this.isHorizontal() ? "y" : "x"} < ${d.max}`,
+          `${
+            this.layout.normalize
+              ? "Normalized: "
+              : this.isHorizontal()
+              ? "x = "
+              : "y = "
+          }${d3.format(",")(frequency(d))}`,
           `${
             this.layout.normalize
               ? "Original: " + d3.format(",")(d.frequency)
@@ -281,9 +285,9 @@ class HistogramPlot extends PlotWithAxis<
       ?.data(this._data.data)
       .join("text")
       .attr("alignment-baseline", "middle")
-      .attr("text-anchor", this.isHorizontal() ? "middle" : "start")
-      .attr("dx", this.isHorizontal() ? null : offset)
-      .attr("dy", this.isHorizontal() ? "-" + offset : null)
+      .attr("text-anchor", this.isHorizontal() ? "start" : "middle")
+      .attr("dx", this.isHorizontal() ? offset : null)
+      .attr("dy", this.isHorizontal() ? null : "-" + offset)
       .attr("x", topX)
       .attr("y", topY)
       .text((d) => (d.selected ? d3.format(",")(frequency(d)) : ""))

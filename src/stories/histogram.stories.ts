@@ -64,11 +64,11 @@ HorizontalHistogram.args = {
     orientation: "horizontal",
     axes: {
       x: {
-        label: "First 24 Hours",
-      },
-      y: {
         label: "Number of patients",
         showLines: true,
+      },
+      y: {
+        label: "First 24 Hours",
       },
     },
   },
@@ -83,11 +83,11 @@ VerticalHistogram.args = {
     orientation: "vertical",
     axes: {
       x: {
-        label: "Number of patients",
-        showLines: true,
+        label: "First 24 Hours",
       },
       y: {
-        label: "First 24 Hours",
+        label: "Number of patients",
+        showLines: true,
       },
     },
   },
@@ -225,11 +225,11 @@ CustomHorizontalHistogram.args = {
     orientation: "horizontal",
     axes: {
       x: {
-        label: "Age (in years)",
-      },
-      y: {
         label: "Number of People",
         showLines: true,
+      },
+      y: {
+        label: "Age (in years)",
       },
     },
   },
@@ -243,10 +243,10 @@ CustomVerticalHistogram.args = {
   layout: {
     orientation: "vertical",
     axes: {
-      y: {
+      x: {
         label: "Age (in years)",
       },
-      x: {
+      y: {
         label: "Number of People",
         showLines: true,
       },
@@ -281,11 +281,11 @@ RandomHorizontalHistogram.args = {
     orientation: "horizontal",
     axes: {
       x: {
-        label: "Scores",
-      },
-      y: {
         label: "Number Of Students",
         showLines: true,
+      },
+      y: {
+        label: "Scores",
       },
     },
   },
@@ -300,11 +300,11 @@ RandomVerticalHistogram.args = {
     orientation: "vertical",
     axes: {
       x: {
-        label: "Number Of Students",
-        showLines: true,
+        label: "Scores",
       },
       y: {
-        label: "Scores",
+        label: "Number Of Students",
+        showLines: true,
       },
     },
   },
@@ -343,7 +343,7 @@ OverlappingHistogram.args = {
     data: data,
   },
   layout: {
-    orientation: "horizontal",
+    orientation: "vertical",
     normalize: true,
     axes: {
       x: {
@@ -421,7 +421,7 @@ const RealtimeTemplate: Story<IHistogramPlot> = (args) => {
 export const RealtimeHistogram = RealtimeTemplate.bind({});
 RealtimeHistogram.args = {
   layout: {
-    orientation: "horizontal",
+    orientation: "vertical",
     axes: {
       x: {
         label: "Real Time Trading Revenue($)",
