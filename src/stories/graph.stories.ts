@@ -55,8 +55,7 @@ export default {
 
 const Template: Story<IGraphPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the graph plot.
@@ -192,8 +191,7 @@ let interval: NodeJS.Timer | undefined = undefined;
 
 const TreeLayoutTemplate: Story<IGraphPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the graph plot.
@@ -246,8 +244,7 @@ TreeLayoutNodes.args = {
 
 const RealtimeTemplate: Story<IGraphPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the graph plot.

@@ -143,7 +143,7 @@ class HistogramPlot extends PlotWithAxis<
       // Create the SVG element.
       const { svg } = createSvg(this.container, this.layout);
 
-      this.svgSel = svg.on("click", (e: PointerEvent) => {
+      this.svgSel = svg.on("click", () => {
         this.notify("clickSpace");
       });
 

@@ -50,12 +50,6 @@ interface ILinePlotEvents {
   clickSpace: () => void;
 }
 
-/** The named or indexed min and max simultaneously. */
-interface IExtents {
-  /** The indexed min & max simultaneously. */
-  [key: string | number]: [number | undefined, number | undefined];
-}
-
 /**
  * An object that persists, renders, and handles information about a line plot in 2D.
  */
@@ -119,10 +113,13 @@ class LinePlot extends PlotWithAxis<
    * @param cb The callback to pick a value for extent.
    * @returns The min and max simultaneously.
    */
-  private extent(data: ILinePlotData[], cb: Function) {
+  private extent(
+    data: ILinePlotData[],
+    cb: (d: ILinePoint) => number | undefined
+  ) {
     let numbers: number[] = [];
     data.forEach((e) => {
-      numbers = numbers.concat(...e.data.map((d) => cb(d)));
+      numbers = numbers.concat(...e.data.map((d) => cb(d) as number));
     });
     return d3.extent(numbers);
   }
@@ -230,7 +227,7 @@ class LinePlot extends PlotWithAxis<
         .transition()
         .duration(500)
         .call(
-          this.zoomExt.transform as any,
+          this.zoomExt.transform as never,
           d3.zoomIdentity
             .scale(
               (1 + padding) *

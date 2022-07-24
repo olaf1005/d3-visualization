@@ -1,5 +1,5 @@
 /** The type of the inputs to an event listener. */
-type EventListenerIn<F> = F extends (...args: infer U) => any ? U : [];
+type EventListenerIn<F> = F extends (...args: infer U) => unknown ? U : [];
 /** The type of the outputs from an event listener. */
 type EventListenerOut<F> = F extends (...args: any[]) => infer U ? U : never;
 
@@ -14,7 +14,7 @@ type EventListenerEntry<F> = {
 
 /** A type used to filter event listener functions out of another type. */
 type EventListenerFilter<T, U extends keyof T = keyof T> = {
-  [K in U]: T[K] extends (...args: any[]) => any ? K : never;
+  [K in U]: T[K] extends (...args: any[]) => unknown ? K : never;
 }[U];
 /** A type that describes the prescribed events of a specified type. */
 type EventKey<T> = EventListenerFilter<T> & string;
@@ -39,7 +39,7 @@ class EventDriver<T> {
    */
   public once<K extends EventKey<T>>(event: K, listener: EventListener<T[K]>) {
     this.ensureListenersReady(event);
-    this.listeners[event]!.add({
+    this.listeners[event]?.add({
       listener,
       once: true,
     });
@@ -52,7 +52,7 @@ class EventDriver<T> {
    */
   public on<K extends EventKey<T>>(event: K, listener: EventListener<T[K]>) {
     this.ensureListenersReady(event);
-    this.listeners[event]!.add({
+    this.listeners[event]?.add({
       listener,
       once: false,
     });
@@ -65,8 +65,8 @@ class EventDriver<T> {
    */
   public off<K extends EventKey<T>>(event: K, listener: EventListener<T[K]>) {
     this.ensureListenersReady(event);
-    this.listeners[event]!.forEach((entry) => {
-      if (entry.listener === listener) this.listeners[event]!.delete(entry);
+    this.listeners[event]?.forEach((entry) => {
+      if (entry.listener === listener) this.listeners[event]?.delete(entry);
     });
     return this;
   }
@@ -81,9 +81,9 @@ class EventDriver<T> {
     ...args: EventListenerIn<T[K]>
   ) {
     this.ensureListenersReady(event);
-    this.listeners[event]!.forEach((entry) => {
+    this.listeners[event]?.forEach((entry) => {
       entry.listener(...args);
-      if (entry.once) this.listeners[event]!.delete(entry);
+      if (entry.once) this.listeners[event]?.delete(entry);
     });
     return this;
   }

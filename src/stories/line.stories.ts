@@ -14,8 +14,7 @@ export default {
 
 const Template: Story<ILinePlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the line plot.
@@ -145,7 +144,7 @@ SpirographLine.args = {
 };
 
 export const MultiLines = Template.bind({});
-let multiData: ILinePlotData[] = [];
+const multiData: ILinePlotData[] = [];
 data = [];
 for (let t = 0; t <= 2 * Math.PI; t += 0.1) {
   data.push({
@@ -189,8 +188,7 @@ let interval: NodeJS.Timer | undefined = undefined;
 
 const RealtimeTemplate: Story<ILinePlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the line plot.
@@ -219,8 +217,9 @@ const RealtimeTemplate: Story<ILinePlot> = (args) => {
     const u1 = Math.random();
     const u2 = Math.random();
     const n = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-    const x = datum.x! + 1;
-    const y = datum.y! + n;
+    const x = (datum.x as number) + 1;
+    const y = (datum.y as number) + n;
+
     if (data.data.length >= limitPoints) {
       data.data.shift();
     }
@@ -248,8 +247,7 @@ RealtimeLine.args = {
 
 const MarketTemplate: Story<ILinePlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the line plot.
@@ -273,8 +271,8 @@ const MarketTemplate: Story<ILinePlot> = (args) => {
     const u1 = Math.random();
     const u2 = Math.random();
     const n = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-    const x = datum.x! + 1;
-    const y = datum.y! + n;
+    const x = (datum.x as number) + 1;
+    const y = (datum.y as number) + n;
     if (data.data.length >= limitPoints) {
       data.data.shift();
     }

@@ -19,8 +19,7 @@ export default {
 
 const Template: Story<IHeatmapPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the Heatmap plot.
@@ -41,7 +40,7 @@ const Template: Story<IHeatmapPlot> = (args) => {
   return container;
 };
 
-let data: IHeatmapCell[][] = [];
+const data: IHeatmapCell[][] = [];
 
 for (let x = 0; x < 8; x++) {
   data[x] = [];
@@ -117,16 +116,15 @@ const bitcoins = [
 
 const RealtimeTemplate: Story<IHeatmapPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the Donut plot.
   const { layout } = args;
 
   const data: IHeatmapPlotData = {
-    data: bitcoins.map((bitcoin, x) =>
-      countries.map((country, y) => ({
+    data: bitcoins.map((bitcoin) =>
+      countries.map((country) => ({
         id: `${bitcoin}-${country}`,
         value: 0,
       }))
@@ -151,7 +149,7 @@ const RealtimeTemplate: Story<IHeatmapPlot> = (args) => {
       .fill(0)
       .map((_, k) => 1 + Math.sin(k / 5))
   );
-  let valuesSum = values.reduce(
+  const valuesSum = values.reduce(
     (x, y) => x + y.reduce((y0, y1) => y0 + y1, 0),
     0
   );

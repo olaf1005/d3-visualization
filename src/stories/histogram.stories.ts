@@ -19,8 +19,7 @@ export default {
 
 const Template: Story<IHistogramPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the Histogram plot.
@@ -255,7 +254,7 @@ CustomVerticalHistogram.args = {
 };
 
 data = [];
-let prevPos: number = 0;
+let prevPos = 0;
 for (let i = 0; i < 10; i++) {
   const d = Math.random() * 20;
   data.push({
@@ -313,7 +312,7 @@ RandomVerticalHistogram.args = {
 data = [];
 const colors: {
   rgb: string;
-  freq: Function;
+  freq: (v: number) => number;
 }[] = [
   {
     rgb: "255, 0, 0",
@@ -361,8 +360,7 @@ let interval: NodeJS.Timer | undefined = undefined;
 
 const RealtimeTemplate: Story<IHistogramPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the Histogram plot.
@@ -392,7 +390,7 @@ const RealtimeTemplate: Story<IHistogramPlot> = (args) => {
   frequencies = Array(20)
     .fill(0)
     .map((_, k) => 1 + Math.sin(k / 5));
-  let frequencySum = frequencies.reduce((x, y) => x + y, 0);
+  const frequencySum = frequencies.reduce((x, y) => x + y, 0);
   frequencies = frequencies.map((f) => f / frequencySum);
 
   if (interval) {

@@ -202,7 +202,7 @@ class GraphPlot extends BasePlot<
     // Initialize the extensions.
     this.zoomExt = d3
       .zoom<SVGSVGElement, unknown>()
-      .filter((event: any) => !event.button && event.type !== "dblclick")
+      .filter((event) => !event.button && event.type !== "dblclick")
       .on("zoom", (event) => {
         this.contentSel?.attr("transform", event.transform);
         this.tick();
@@ -326,7 +326,7 @@ class GraphPlot extends BasePlot<
    * @param offsetY offset y for multiple tree
    * @returns width & height, max size for tree
    */
-  private buildHierarchyTreeLayout(data: ITreePlotData, offsetY: number = 0) {
+  private buildHierarchyTreeLayout(data: ITreePlotData, offsetY = 0) {
     const root = d3
       .hierarchy(data)
       .sort((a, b) => d3.ascending(a.data.label, b.data.label)) as ITreeVertex;
@@ -355,7 +355,7 @@ class GraphPlot extends BasePlot<
       d3.tree().size([treeWidth, treeHeight])(root);
     }
 
-    const swap = (node: any) => {
+    const swap = (node: { x: number; y: number }) => {
       if (this.isHorizontalTreeLayout()) {
         if (node.x !== undefined && node.y !== undefined) {
           const t = node.x;
@@ -616,7 +616,7 @@ class GraphPlot extends BasePlot<
     if (this.locSel) {
       const { size } = createSvg(undefined, this.layout, true);
       if (this.contentSel) {
-        const transform = d3.zoomTransform(this.contentSel.node()!);
+        const transform = d3.zoomTransform(this.contentSel.node() as Element);
         const { x, y, k } = transform;
         const calcLocator = (v: IGraphVertex): IGraphLocator | null => {
           // Check if the vertex is within the viewport.
@@ -678,19 +678,18 @@ class GraphPlot extends BasePlot<
     if (!this.isNoneTreeLayout()) {
       return;
     }
-    const that = this;
     const onDragStarted = (
       event: d3.D3DragEvent<SVGCircleElement, IGraphVertex, IGraphVertex>
     ) => {
-      that.forceExt.alphaTarget(1).restart();
-      if (!event.active) that.forceExt.alphaTarget(0.3).restart();
+      this.forceExt.alphaTarget(1).restart();
+      if (!event.active) this.forceExt.alphaTarget(0.3).restart();
       event.subject.fx = event.subject.x;
       event.subject.fy = event.subject.y;
     };
     const onDragEnded = (
       event: d3.D3DragEvent<SVGCircleElement, IGraphVertex, IGraphVertex>
     ) => {
-      if (!event.active) that.forceExt.alphaTarget(0.0);
+      if (!event.active) this.forceExt.alphaTarget(0.0);
       event.subject.fx = null;
       event.subject.fy = null;
     };
@@ -734,7 +733,7 @@ class GraphPlot extends BasePlot<
         .transition()
         .duration(500)
         .call(
-          this.zoomExt.transform as any,
+          this.zoomExt.transform as never,
           d3.zoomIdentity
             .scale(
               (1 + padding) *
@@ -848,7 +847,7 @@ class GraphPlot extends BasePlot<
    * Triggers simulation of the graph.
    * Should be called when vertices or edges have been added or removed.
    */
-  public simulate(alpha: number = 1.0) {
+  public simulate(alpha = 1.0) {
     if (!this.isNoneTreeLayout()) {
       this.forceExt.stop();
       this.forceExt.alpha(alpha).stop();
@@ -949,7 +948,7 @@ class GraphPlot extends BasePlot<
 
     if (this.isNoneTreeLayout()) {
       this.nodeSel
-        ?.call(this.drag() as any)
+        ?.call(this.drag() as never)
         .on("click", (e: PointerEvent, d) => {
           switch (e.detail) {
             case 1:

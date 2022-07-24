@@ -218,7 +218,7 @@ class DonutPlot extends BasePlot<
     const padAngle = 2 / radius;
     const gapLabel = 15;
 
-    const calcInnerRadius = (d: d3.PieArcDatum<IDonutBin>) => innerRadius;
+    const calcInnerRadius = () => innerRadius;
     const calcOuterRadius = (d: d3.PieArcDatum<IDonutBin>) =>
       (d.data.style?.fillRadius ?? outerRadius) + innerRadius;
 

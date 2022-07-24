@@ -14,8 +14,7 @@ export default {
 
 const Template: Story<IDonutPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the line plot.
@@ -215,8 +214,7 @@ let interval: NodeJS.Timer | undefined = undefined;
 
 const RealtimeTemplate: Story<IDonutPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the Donut plot.
@@ -261,7 +259,7 @@ const RealtimeTemplate: Story<IDonutPlot> = (args) => {
   values = Array(countries.length)
     .fill(0)
     .map((_, k) => 1 + Math.sin(k / 5));
-  let valuesSum = values.reduce((x, y) => x + y, 0);
+  const valuesSum = values.reduce((x, y) => x + y, 0);
   values = values.map((f) => f / valuesSum);
 
   if (interval) {

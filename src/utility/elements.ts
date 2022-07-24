@@ -61,10 +61,10 @@ function createSvg<TPlot extends IPlotLayout<string>>(
       .attr("style", style);
 
     // Return the SVG element and relevant computed information.
-    return { size, margin, style, viewBox, svg } as any;
+    return { size, margin, style, viewBox, svg } as unknown;
   } else {
     // Return the SVG element and relevant computed information.
-    return { size, margin, style, viewBox } as any;
+    return { size, margin, style, viewBox } as unknown;
   }
 }
 

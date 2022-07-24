@@ -32,7 +32,7 @@ class PlotWithAxis<
     // Initialize the extensions.
     this.zoomExt = d3
       .zoom<SVGSVGElement, unknown>()
-      .filter((event: any) => !event.button && event.type !== "dblclick")
+      .filter((event) => !event.button && event.type !== "dblclick")
       .on("zoom", ({ transform }: { transform: d3.ZoomTransform }) => {
         const scaleXZoom = transform.rescaleX(this._scaleX);
         const scaleYZoom = transform.rescaleY(this._scaleY);
@@ -122,7 +122,7 @@ class PlotWithAxis<
   /** Reset the axes. */
   protected resetAxis() {
     if (this.contentSel) {
-      const transform = d3.zoomTransform(this.contentSel.node()!);
+      const transform = d3.zoomTransform(this.contentSel.node() as Element);
       const scaleXZoom = transform.rescaleX(this.scaleX);
       const scaleYZoom = transform.rescaleY(this.scaleY);
       this.xAxis(this.xAxisSel, scaleXZoom);

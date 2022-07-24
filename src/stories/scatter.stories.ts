@@ -19,8 +19,7 @@ export default {
 
 const Template: Story<IScatterPlot> = (args) => {
   // Construct the container.
-  let container: HTMLDivElement;
-  container = document.createElement("div");
+  const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the scatter plot.

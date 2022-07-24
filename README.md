@@ -1,7 +1,6 @@
 # Contextualize Visualization Library
 
 This project contains a Node.js library [Node.js](https://nodejs.org) that is used to generate common visualizations for data. The predominantly used packages are [D3](https://d3js.org/) and [Three.js](https://threejs.org/).
-The contributors to this project are listed [here](./CONTRIBUTING.md). The documentation for this library is hosted [here](https://contextualize.gitlab.io/contextualize-visualize).
 
 ## System Requirements
 
@@ -24,8 +23,8 @@ in the root directory of the project.
 The following are guidelines for how code should be contributed to this project.
 
 - [Commitizen-friendly](https://github.com/commitizen/cz-cli) commit messages should always be used.
-- Before code is submitted, [Prettier](https://prettier.io/) should be used to format code. We suggest using the [VSCode extension](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode).
-- Code versions should be bumped before pushing changes into `main` according to [Semantic Versioning](https://semver.org/) guidelines.
+- Before code is submitted, [Prettier](https://prettier.io/) should be used to format code and [ESLint](https://eslint.org/) should be used to lint code. We suggest using the [Prettier VSCode extension](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) and [ESLint VSCode extension](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint).
+- Code versions should be bumped according to [Semantic Versioning](https://semver.org/) guidelines. This must be done before releases are made.
 
 ## Commands
 
@@ -35,7 +34,25 @@ The following commands are available for running, testing, and packaging the pro
   npm run rollup
   ```
 
-  packages the project as both a CommonJS and ECMAScript modules. The packaged files are contained in `dist/cjs` and `dist/esm` respectively. The package contains type declarations embedded within so dependents do not need to install a `@types` module.
+  packages the project as a ECMAScript module. The packaged files are contained in `dist/esm`. The package contains type declarations embedded within so dependents do not need to install a `@types` module.
+
+- ```bash
+  npm run lint
+  ```
+
+  lints the package source code files using [ESLint](https://eslint.org/) to detect code logic and quality problems. **This does not modify any of the source code files.** The linting is only applied to the `src/` directory. Returns exit code `1` if linting has detected any errors or warnings.
+
+- ```bash
+  npm run format
+  ```
+
+  formats the package source code files using [Prettier](https://prettier.io/) to make code of a consistent formatting. **This does modify the source code files.** The formatting is only applied to the `src/` directory.
+
+- ```bash
+  npm run format-check
+  ```
+
+  checks the formattign of the package source code files using [Prettier](https://prettier.io/) to detect code formatting problems. **This does not modify the source code files.** The formatting is only checked in the `src/` directory. Returns exit code `1` if any formatting problems exist.
 
 - ```bash
   npm run test
@@ -59,7 +76,8 @@ The following commands are available for running, testing, and packaging the pro
 This project is configured to run a continuous deployment pipeline on [GitLab](https://gitlab.com/). This pipeline does the following:
 
 1. Tests that that unit tests run with no errors.
-2. Publishes the package to the [GitLab Package Registry](https://docs.gitlab.com/ee/user/packages/package_registry/) if on the `main` branch.
-3. Publishes the [Storybook](https://storybook.js.org/) documentation if on the `main` branch.
+2. Lints the code to verify code quality and formatting. 
+3. Publishes the package to the [GitLab Package Registry](https://docs.gitlab.com/ee/user/packages/package_registry/) if a tag is created on a commit in the `main` branch.
+4. Publishes the [Storybook](https://storybook.js.org/) documentation if on the `main` branch.
 
-**It is important that the version of the package in `project.json` is bumped whenever new features are pushed into `main`. Otherwise, the publish stage will fail to update the package registry.**
+**It is important that the version of the package in `project.json` is bumped whenever a new release tag is made in `main`. Otherwise, the publish stage will fail to update the package registry.**

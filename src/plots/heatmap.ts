@@ -1,11 +1,5 @@
 import * as d3 from "d3";
-import {
-  BasePlot,
-  IPlotLayout,
-  IPlotStyle,
-  PlotWithAxis,
-  Selection,
-} from "types";
+import { BasePlot, IPlotLayout, IPlotStyle, Selection } from "types";
 import { createSvg, findColormap } from "utility";
 
 /** The type of datum for each heatmap plot cell. */
