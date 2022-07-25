@@ -71,6 +71,12 @@ class LinePlot extends PlotWithAxis<
   private _lines: TLineSegment[];
   // #endregion
 
+  private connectLine = d3
+    .line()
+    .defined((d) => !isNaN(d[1]))
+    .x((d) => this.scaleX(d[0]))
+    .y((d) => this.scaleY(d[1]));
+
   /**
    * Constructs a new line plot.
    * @param data Data to be plotted. Optional.
@@ -214,10 +220,6 @@ class LinePlot extends PlotWithAxis<
     const xExtent = this.extent(this.data, (d: ILinePoint) => d.x);
     const yExtent = this.extent(this.data, (d: ILinePoint) => d.y);
 
-    // Check for invalid bounds.
-    if (xExtent[0] === undefined || xExtent[1] === undefined) return;
-    if (yExtent[0] === undefined || yExtent[1] === undefined) return;
-
     // Perform the zooming.
     const padding = 0.25;
     const [xMin, xMax] = xExtent as [number, number];
@@ -307,6 +309,11 @@ class LinePlot extends PlotWithAxis<
         d.value !== undefined
           ? this.scaleColors[dataIDFromPoint(d, i)](d.value)
           : parentFromPoint(d, i)?.color ?? d.style?.fillColor ?? "#53b853"
+      )
+      .attr("stroke", (d) =>
+        d.weight !== undefined
+          ? this.scaleColor(d.weight)
+          : d.style?.strokeColor ?? "none"
       )
       .attr("stroke", (d) => d.style?.strokeColor ?? "none")
       .attr("stroke-width", (d) => d.style?.strokeWidth ?? 0);

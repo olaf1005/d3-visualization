@@ -160,7 +160,7 @@ class PlotWithAxis<
             .tickSize(-(size.height - margin.top - margin.bottom))
         )
         .selectAll("line")
-        .attr("opacity", 0.25);
+        .attr("opacity", "0.5");
     }
   }
 
@@ -176,7 +176,7 @@ class PlotWithAxis<
             .tickSize(-(size.width - margin.left - margin.right))
         )
         .selectAll("line")
-        .attr("opacity", 0.25);
+        .attr("opacity", "0.5");
     }
   }
 }

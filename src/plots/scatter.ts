@@ -188,7 +188,15 @@ class ScatterPlot2d extends PlotWithAxis<
         .transition()
         .duration(500)
         .call(
-          this.zoomExt.transform as never,
+          this.zoomExt.transform as unknown as (
+            transition: d3.Transition<
+              SVGGElement,
+              unknown,
+              HTMLElement,
+              unknown
+            >,
+            ...args: unknown[]
+          ) => unknown,
           d3.zoomIdentity
             .scale(
               (1 + padding) *
