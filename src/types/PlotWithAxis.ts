@@ -4,7 +4,7 @@ import BasePlot from "./BasePlot";
 import { IPlotLayout } from "./IPlotLayout";
 import { Selection } from "./Selection";
 
-type AxisSel = Selection<SVGGElement, unknown, HTMLElement>;
+type AxisSelection = Selection<SVGGElement, unknown, HTMLElement>;
 type AxisScale = d3.ScaleLinear<number, number>;
 
 class PlotWithAxis<
@@ -13,8 +13,8 @@ class PlotWithAxis<
   TEvent
 > extends BasePlot<TData, TLayout, TEvent> {
   // #region DOM
-  protected xAxisSel?: AxisSel;
-  protected yAxisSel?: AxisSel;
+  protected xAxisSelection?: AxisSelection;
+  protected yAxisSelection?: AxisSelection;
   // #endregion
 
   // #region Data
@@ -36,10 +36,10 @@ class PlotWithAxis<
       .on("zoom", ({ transform }: { transform: d3.ZoomTransform }) => {
         const scaleXZoom = transform.rescaleX(this._scaleX);
         const scaleYZoom = transform.rescaleY(this._scaleY);
-        this.xAxis(this.xAxisSel, scaleXZoom);
-        this.yAxis(this.yAxisSel, scaleYZoom);
-        this.xAxisGrid(this.xAxisSel, scaleXZoom);
-        this.yAxisGrid(this.yAxisSel, scaleYZoom);
+        this.xAxis(this.xAxisSelection, scaleXZoom);
+        this.yAxis(this.yAxisSelection, scaleYZoom);
+        this.xAxisGrid(this.xAxisSelection, scaleXZoom);
+        this.yAxisGrid(this.yAxisSelection, scaleYZoom);
         this.contentSel?.attr("transform", transform.toString());
       });
   }
@@ -92,8 +92,8 @@ class PlotWithAxis<
       const axisLabelColor = this._layout.style?.color ?? "";
 
       // Create the axes.
-      this.xAxisSel = this.svgSel.append("g").lower();
-      this.yAxisSel = this.svgSel.append("g").lower();
+      this.xAxisSelection = this.svgSel.append("g").lower();
+      this.yAxisSelection = this.svgSel.append("g").lower();
 
       // Add x axis label
       this.svgSel
@@ -125,15 +125,15 @@ class PlotWithAxis<
       const transform = d3.zoomTransform(this.contentSel.node() as Element);
       const scaleXZoom = transform.rescaleX(this.scaleX);
       const scaleYZoom = transform.rescaleY(this.scaleY);
-      this.xAxis(this.xAxisSel, scaleXZoom);
-      this.yAxis(this.yAxisSel, scaleYZoom);
-      this.xAxisGrid(this.xAxisSel, scaleXZoom);
-      this.yAxisGrid(this.yAxisSel, scaleYZoom);
+      this.xAxis(this.xAxisSelection, scaleXZoom);
+      this.yAxis(this.yAxisSelection, scaleYZoom);
+      this.xAxisGrid(this.xAxisSelection, scaleXZoom);
+      this.yAxisGrid(this.yAxisSelection, scaleYZoom);
     }
   }
 
   /** Creates an x-axis for the plot. */
-  protected xAxis(g: AxisSel | undefined, scale: AxisScale) {
+  protected xAxis(g: AxisSelection | undefined, scale: AxisScale) {
     const { size, margin } = createSvg(undefined, this._layout);
     g?.attr("transform", `translate(0, ${size.height - margin.bottom})`).call(
       d3.axisBottom(scale)
@@ -141,7 +141,7 @@ class PlotWithAxis<
   }
 
   /** Creates an y-axis for the plot. */
-  protected yAxis(g: AxisSel | undefined, scale: AxisScale) {
+  protected yAxis(g: AxisSelection | undefined, scale: AxisScale) {
     const { margin } = createSvg(undefined, this._layout);
     g?.attr("transform", `translate(${margin.left}, 0)`).call(
       d3.axisLeft(scale)
@@ -149,7 +149,7 @@ class PlotWithAxis<
   }
 
   /** Creates an x-axis grid for the plot. */
-  protected xAxisGrid(g: AxisSel | undefined, scale: AxisScale) {
+  protected xAxisGrid(g: AxisSelection | undefined, scale: AxisScale) {
     const { size, margin } = createSvg(undefined, this._layout);
     const activeXAxisGrid = this._layout.axes?.x?.showLines;
     if (activeXAxisGrid) {
@@ -165,7 +165,7 @@ class PlotWithAxis<
   }
 
   /** Creates an y-axis grid for the plot. */
-  protected yAxisGrid(g: AxisSel | undefined, scale: AxisScale) {
+  protected yAxisGrid(g: AxisSelection | undefined, scale: AxisScale) {
     const { size, margin } = createSvg(undefined, this._layout);
     const activeYAxisGrid = this._layout.axes?.y?.showLines;
     if (activeYAxisGrid) {

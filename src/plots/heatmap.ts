@@ -34,9 +34,9 @@ interface IHeatmapPlotLayout extends IPlotLayout<"heatmap"> {
   colorBar?: {
     /** Whether to show the color bar. */
     show?: boolean;
-    /** Define the width of the color bar. */
+    /** Define the width percent of the color bar based on plot width. */
     width?: number;
-    /** Define the gap between the color bar and the heatmap plot. */
+    /** Define the gap percent between the color bar and the heatmap plot based on plot width. */
     gap?: number;
   };
   /** Define the axis infos for the heatmap plot. */
@@ -68,7 +68,7 @@ interface IHeatmapPlotEvents {
   clickSpace: () => void;
 }
 
-type AxisSel = Selection<SVGGElement, unknown, HTMLElement>;
+type AxisSelection = Selection<SVGGElement, unknown, HTMLElement>;
 type AxisScale = d3.ScaleBand<string>;
 
 /**
@@ -90,8 +90,8 @@ class HeatmapPlot extends BasePlot<
     SVGLinearGradientElement
   >;
   private colorStopValuesSel?: Selection<SVGGElement, number, SVGGElement>;
-  protected xAxisSel?: AxisSel;
-  protected yAxisSel?: AxisSel;
+  protected xAxisSelection?: AxisSelection;
+  protected yAxisSelection?: AxisSelection;
   // #endregion
 
   // #region Data
@@ -103,8 +103,8 @@ class HeatmapPlot extends BasePlot<
   private _defaultLayout: IHeatmapPlotLayout = {
     colorBar: {
       show: true,
-      width: 100,
-      gap: 20,
+      width: 8,
+      gap: 2,
     },
   };
   // #endregion
@@ -138,8 +138,8 @@ class HeatmapPlot extends BasePlot<
     this.setupScales();
   }
 
-  /** Get the width of the color bar. */
-  private colorBarWidth() {
+  /** Get the total width percent of the color bar with gap. */
+  private colorBarTotalPercent() {
     return this.layout.colorBar?.show
       ? (this.layout.colorBar.gap ?? 0) + (this.layout.colorBar.width ?? 0)
       : 0;
@@ -152,7 +152,9 @@ class HeatmapPlot extends BasePlot<
 
     const scaleRangeX = [
       margin.left,
-      size.width - margin.right - this.colorBarWidth(),
+      size.width -
+        margin.right -
+        (size.width * this.colorBarTotalPercent()) / 100,
     ];
     const scaleRangeY = [size.height - margin.bottom, margin.top];
 
@@ -181,8 +183,8 @@ class HeatmapPlot extends BasePlot<
   /** Reset the axes. */
   protected resetAxis() {
     if (this.svgSel) {
-      this.xAxis(this.xAxisSel, this.scaleX);
-      this.yAxis(this.yAxisSel, this.scaleY);
+      this.xAxis(this.xAxisSelection, this.scaleX);
+      this.yAxis(this.yAxisSelection, this.scaleY);
     }
   }
 
@@ -205,7 +207,9 @@ class HeatmapPlot extends BasePlot<
           .attr(
             "transform",
             `translate(${
-              size.width - margin.right - (this.layout.colorBar?.width ?? 0)
+              size.width -
+              margin.right -
+              ((size.width * (this.layout.colorBar?.width ?? 10)) / 100 ?? 0)
             }, ${margin.top})`
           );
 
@@ -221,7 +225,10 @@ class HeatmapPlot extends BasePlot<
         this.colorBoard
           .append("rect")
           .attr("fill", "url(#legend-gradient)")
-          .attr("width", (this.layout.colorBar?.width ?? 0) / 2)
+          .attr(
+            "width",
+            (size.width * (this.layout.colorBar?.width ?? 10)) / 100 ?? 0
+          )
           .attr("height", size.height - margin.top - margin.bottom);
       }
 
@@ -249,8 +256,8 @@ class HeatmapPlot extends BasePlot<
       const axisLabelColor = this._layout.style?.color ?? "";
 
       // Create the axes.
-      this.xAxisSel = this.svgSel.append("g").lower();
-      this.yAxisSel = this.svgSel.append("g").lower();
+      this.xAxisSelection = this.svgSel.append("g").lower();
+      this.yAxisSelection = this.svgSel.append("g").lower();
 
       // Add x axis label
       this.svgSel
@@ -258,7 +265,11 @@ class HeatmapPlot extends BasePlot<
         .attr(
           "x",
           margin.left +
-            (size.width - margin.left - margin.right - this.colorBarWidth()) / 2
+            (size.width -
+              margin.left -
+              margin.right -
+              (size.width * this.colorBarTotalPercent()) / 100) /
+              2
         )
         .attr("y", size.height - 5)
         .attr("text-anchor", "middle")
@@ -281,7 +292,7 @@ class HeatmapPlot extends BasePlot<
   }
 
   /** Creates an x-axis for the plot. */
-  protected xAxis(g: AxisSel | undefined, scale: AxisScale) {
+  protected xAxis(g: AxisSelection | undefined, scale: AxisScale) {
     const { size, margin } = createSvg(undefined, this._layout);
     g?.attr("transform", `translate(0, ${size.height - margin.bottom})`)
       .call(d3.axisBottom(scale))
@@ -295,7 +306,7 @@ class HeatmapPlot extends BasePlot<
   }
 
   /** Creates an y-axis for the plot. */
-  protected yAxis(g: AxisSel | undefined, scale: AxisScale) {
+  protected yAxis(g: AxisSelection | undefined, scale: AxisScale) {
     const { margin } = createSvg(undefined, this._layout);
     g?.attr("transform", `translate(${margin.left}, 0)`)
       .call(d3.axisLeft(scale))
@@ -372,7 +383,7 @@ class HeatmapPlot extends BasePlot<
       this.colorStopValuesSel = this.colorStopValuesSel
         ?.data([minValue, maxValue])
         .join("text")
-        .attr("x", (this.layout.colorBar.width ?? 0) / 2 + 5)
+        .attr("x", (size.width * (this.layout.colorBar?.width ?? 0)) / 100 ?? 0)
         .attr(
           "y",
           (d, i) => (1 - i) * (size.height - margin.bottom - margin.top)

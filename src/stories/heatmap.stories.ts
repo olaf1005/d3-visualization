@@ -40,25 +40,50 @@ const Template: Story<IHeatmapPlot> = (args) => {
   return container;
 };
 
-const data: IHeatmapCell[][] = [];
+let data: IHeatmapCell[][] = [];
 
-for (let x = 0; x < 8; x++) {
+export const SimpleHeatmap = Template.bind({});
+for (let x = 0; x < 20; x++) {
   data[x] = [];
-  for (let y = 0; y < 8; y++) {
+  for (let y = 0; y < 20; y++) {
     data[x][y] = {
       id: `${x}-${y}`,
-      value: (x + y) % 2,
+      value: Math.floor(Math.random() * 100),
       label: "",
     };
   }
 }
+SimpleHeatmap.args = {
+  data: {
+    data: data,
+  },
+};
 
 export const ChessBoardHeatmap = Template.bind({});
+data = [];
+for (let x = 0; x < 8; x++) {
+  data[x] = [];
+  for (let y = 0; y < 8; y++) {
+    const cellValue = (x + y) % 2;
+    data[x][y] = {
+      id: `${x}-${y}`,
+      value: cellValue,
+      label: "",
+      style: {
+        fillColor: cellValue == 1 ? "black" : "white",
+        strokeWidth: 0,
+      },
+    };
+  }
+}
 ChessBoardHeatmap.args = {
   data: {
     data: data,
   },
   layout: {
+    colorBar: {
+      show: false,
+    },
     axes: {
       x: {
         label: "Chess Board",
@@ -70,6 +95,37 @@ ChessBoardHeatmap.args = {
       },
       y: {
         labels: ["1", "2", "3", "4", "5", "6", "7", "8"],
+      },
+    },
+  },
+};
+
+export const SmoothHeatmap = Template.bind({});
+data = [];
+for (let x = 0; x < 50; x++) {
+  data[x] = [];
+  for (let y = 0; y < 50; y++) {
+    const cellValue =
+      Math.sin((2 * Math.PI * x) / 50) * Math.sin((2 * Math.PI * y) / 50);
+    data[x][y] = {
+      id: `${x}-${y}`,
+      value: cellValue,
+      label: "",
+    };
+  }
+}
+SmoothHeatmap.args = {
+  data: {
+    data: data,
+    colormap: "rainbow",
+  },
+  layout: {
+    colorBar: {
+      show: false,
+    },
+    axes: {
+      x: {
+        label: "Smooth Heatmap",
       },
     },
   },
@@ -195,6 +251,101 @@ RealtimeHeatmap.args = {
       },
       y: {
         labels: countries,
+      },
+    },
+  },
+};
+
+const ThermalTemplate: Story<IHeatmapPlot> = (args) => {
+  // Construct the container.
+  const container = document.createElement("div");
+  container.className = "plot-container";
+
+  // Set up the Donut plot.
+  const { layout } = args;
+  // Initiate Data
+  const cellData: IHeatmapCell[][] = [];
+  const resolution = 50;
+  const thermalResources = [20, 60, 80, 90];
+  const conductivity = 0.1;
+  let cellValue = 0;
+  for (let x = 0; x < resolution; x++) {
+    cellData[x] = [];
+    for (let y = 0; y < resolution; y++) {
+      //Boundaries of plane
+      if (x == 0) {
+        //left
+        cellValue = thermalResources[0];
+      } else if (x == resolution - 1) {
+        //Right
+        cellValue = thermalResources[2];
+      } else if (y == 0) {
+        //Up
+        cellValue = thermalResources[1];
+      } else if (y == resolution - 1) {
+        //Down
+        cellValue = thermalResources[3];
+      } else {
+        //inner cold space
+        cellValue = 0;
+      }
+      cellData[x][y] = {
+        id: `${x}-${y}`,
+        value: cellValue,
+        label: "",
+      };
+    }
+  }
+
+  const plot = new HeatmapPlot(
+    {
+      data: cellData,
+      colormap: "inferno",
+    },
+    layout,
+    container
+  );
+  plot
+    .on("singleClickCell", (bin) => {
+      bin.selected = !bin.selected;
+      plot.render();
+    })
+    .on("clickSpace", () => {
+      plot.data.data.forEach((col) => col.forEach((c) => (c.selected = false)));
+      plot.render();
+    });
+  plot.render();
+
+  if (interval) {
+    clearInterval(interval);
+    interval = undefined;
+  }
+
+  interval = setInterval(() => {
+    for (let x = 1; x < resolution - 1; x++) {
+      for (let y = 1; y < resolution - 1; y++) {
+        cellData[x][y].value =
+          conductivity *
+            (cellData[x + 1][y].value +
+              cellData[x - 1][y].value +
+              cellData[x][y + 1].value +
+              cellData[x][y - 1].value -
+              4 * cellData[x][y].value) +
+          cellData[x][y].value;
+      }
+    }
+    plot.data = { data: cellData, colormap: "inferno" };
+    plot.render();
+  }, 50);
+
+  return container;
+};
+export const ThermalConductivity = ThermalTemplate.bind({});
+ThermalConductivity.args = {
+  layout: {
+    axes: {
+      x: {
+        label: "Thermal Heatmap",
       },
     },
   },
