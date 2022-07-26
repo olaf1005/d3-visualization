@@ -36,7 +36,7 @@ interface IGraphVertex extends d3.SimulationNodeDatum {
 
 /** Represents an edge to plot. */
 interface IGraphEdge extends d3.SimulationLinkDatum<IGraphVertex> {
-  /** Whether the vertex is directed. */
+  /** Whether the edge is directed. */
   directed: boolean;
   /** The unique identifier of the source vertex. */
   source: string | IGraphVertex;
@@ -48,6 +48,11 @@ interface IGraphEdge extends d3.SimulationLinkDatum<IGraphVertex> {
 
   /** The styling to be applied to the edge. */
   style?: IPlotStyle;
+
+  offset?: {
+    x?: number;
+    y?: number;
+  };
 }
 
 /** Represents the data contained in the plot. */
@@ -65,6 +70,7 @@ interface IGraphPlotLayout extends IPlotLayout<"graph"> {
     /** Transition period. */
     duration?: number;
   };
+  directionality?: GraphDirectionality;
 }
 
 /** The events that may be emitted from a graph plot. */
@@ -77,55 +83,31 @@ interface IGraphPlotEvents {
   clickSpace: () => void;
 }
 
-/** Tree Layouts */
-type TTreeLayout = "none" | "horizontal" | "vertical" | "radial";
-
-/** Represents a vertex to plot. */
-interface ITreeVertex extends d3.HierarchyPointNode<ITreePlotData> {
-  /** The unique identifier of the vertex. */
-  id: string;
-}
-
-/** Represents an edge to plot. */
-interface ITreeEdge extends d3.HierarchyPointLink<ITreeVertex> {
-  offset?: {
-    x?: number;
-    y?: number;
-  };
-  /** Whether the vertex is directed. */
-  directed?: boolean;
-}
+/** The type of easeEffect. */
+type EaseEffect =
+  | "easeLinear"
+  | "easeQuadInOut"
+  | "easeElasticIn"
+  | "easeBounceInOut";
+/** The type of the graph layout. */
+type GraphDirectionality = "none" | "horizontal" | "vertical" | "radial";
 
 /** Represents the data contained in the plot. */
-interface ITreePlotData {
-  /** The unique identifier of the vertex. */
-  id?: string;
-
+interface ITreePlotData extends IGraphVertex {
   /** The children of the vertex. */
   children?: this[];
-
-  /** The label of the vertex. */
-  label?: string;
-
-  /** Whether the vertex is currently selected. */
-  selected?: boolean;
-  /** Whether the vertex is currently expanded. */
-  expanded?: boolean;
 
   /** the vertex offset for multiple tree. */
   offset?: {
     x?: number;
     y?: number;
   };
-
-  /** The styling to be applied to the vertex. */
-  style?: IPlotStyle;
 }
 
-type GraphEdge = Selection<d3.BaseType, IGraphEdge, SVGGElement>;
-type GraphVertex = Selection<
+type GraphEdgeSelection = Selection<d3.BaseType, IGraphEdge, SVGGElement>;
+type GraphVertexSelection = Selection<
   d3.BaseType,
-  IGraphVertex | ITreeVertex,
+  IGraphVertex | d3.HierarchyPointNode<ITreePlotData>,
   SVGGElement
 >;
 
@@ -141,9 +123,9 @@ class GraphPlot extends BasePlot<
 > {
   // #region DOM
   /** The container to hold the plot. The plot can still update without the container. */
-  private linkSel?: GraphEdge;
-  private nodeSel?: GraphVertex;
-  private textSel?: GraphVertex;
+  private linkSel?: GraphEdgeSelection;
+  private nodeSel?: GraphVertexSelection;
+  private textSel?: GraphVertexSelection;
   private locSel?: Selection<d3.BaseType, IGraphLocator, SVGGElement>;
   private selectSel?: Selection<d3.BaseType, IGraphVertex, SVGGElement>;
   // #endregion
@@ -160,12 +142,15 @@ class GraphPlot extends BasePlot<
   // #endregion
 
   // #region Hierarchy Tree
-  private _treeData: Array<ITreePlotData>;
-  private _treeLayout: TTreeLayout;
-  private _roots: ITreeVertex[] = [];
-  private _nodes: ITreeVertex[] = [];
-  private _links: ITreeEdge[] = [];
+  private _treeData: Array<ITreePlotData> = [];
+  private _roots: d3.HierarchyPointNode<ITreePlotData>[] = [];
+  private _nodes: d3.HierarchyPointNode<ITreePlotData>[] = [];
+  private _links: IGraphEdge[] = [];
   private _defaultRadius = 15;
+  // #endregion
+
+  // #region Ease Effect
+  private _easeEffect: (normalizedTime: number) => number = d3.easeLinear;
   // #endregion
 
   /**
@@ -195,10 +180,6 @@ class GraphPlot extends BasePlot<
     this._forceX = d3.forceX(0).strength(0.05);
     this._forceY = d3.forceY(0).strength(0.05);
 
-    // Setup the tree layout.
-    this._treeLayout = "none";
-    this._treeData = [];
-
     // Initialize the extensions.
     this.zoomExt = d3
       .zoom<SVGSVGElement, unknown>()
@@ -217,7 +198,6 @@ class GraphPlot extends BasePlot<
 
     // Perform setup tasks.
     this.setupElements();
-    this.setupHierarchyTree();
   }
 
   /** Initializes the elements for the graph plot. */
@@ -227,7 +207,7 @@ class GraphPlot extends BasePlot<
       const { svg } = createSvg(
         this.container,
         this.layout,
-        this.isRadialTreeLayout() || this.isNoneTreeLayout()
+        this.isRadialDirectionality() || this.isNoneDirectionality()
       );
       this.svgSel = svg;
       this.svgSel.on("click", (event) => {
@@ -286,21 +266,7 @@ class GraphPlot extends BasePlot<
   }
 
   private setupSimulation() {
-    if (this.svgSel) {
-      const { size } = createSvg(undefined, this.layout);
-      this.svgSel
-        .transition()
-        .ease(d3.easeLinear)
-        .duration(this.transition().duration)
-        .attr(
-          "viewBox",
-          (this.isNoneTreeLayout() || this.isRadialTreeLayout()
-            ? [-size.width / 2, -size.height / 2, size.width, size.height]
-            : [0, 0, size.width, size.height]
-          ).join(" ")
-        );
-    }
-    if (this.isNoneTreeLayout()) {
+    if (this.isNoneDirectionality()) {
       // Set the data within the force simulation.
       this.forceExt.nodes(this._data.vertices);
       this.forceExt
@@ -326,27 +292,26 @@ class GraphPlot extends BasePlot<
    * @param offsetY offset y for multiple tree
    * @returns width & height, max size for tree
    */
-  private buildHierarchyTreeLayout(data: ITreePlotData, offsetY = 0) {
+  private buildHierarchyTree(data: ITreePlotData, offsetY = 0) {
     const root = d3
       .hierarchy(data)
-      .sort((a, b) => d3.ascending(a.data.label, b.data.label)) as ITreeVertex;
+      .sort((a, b) => d3.ascending(a.data.label, b.data.label));
     const descendants = root.descendants().length;
     const leaves = root.leaves().length;
     const multiple =
-      (this.isRadialTreeLayout() ? descendants * Math.PI : 0) + leaves;
+      (this.isRadialDirectionality() ? descendants * Math.PI : 0) + leaves;
     const radius =
       Math.PI *
-      this._defaultRadius ** (this.isRadialTreeLayout() ? 1 : 2) *
+      this._defaultRadius ** (this.isRadialDirectionality() ? 1 : 2) *
       Math.sqrt(multiple);
     const treeWidth = (radius * 2) / Math.sqrt(this._defaultRadius);
     const treeHeight = (radius * 2) / this._defaultRadius;
-    const maxSize = this.isRadialTreeLayout()
+    const maxSize = this.isRadialDirectionality()
       ? radius * 2
       : Math.max(treeWidth, treeHeight);
 
     // Compute the layout.
-    if (this.isRadialTreeLayout()) {
-      // d3.cluster().size([2 * Math.PI, radius - 100]) .separation((a, b) => (a.parent == b.parent ? 1 : 3) / a.depth)(root);
+    if (this.isRadialDirectionality()) {
       d3
         .tree()
         .size([2 * Math.PI, radius])
@@ -355,8 +320,8 @@ class GraphPlot extends BasePlot<
       d3.tree().size([treeWidth, treeHeight])(root);
     }
 
-    const swap = (node: { x: number; y: number }) => {
-      if (this.isHorizontalTreeLayout()) {
+    const swap = (node: d3.HierarchyPointNode<ITreePlotData>) => {
+      if (this.isHorizontalDirectionality()) {
         if (node.x !== undefined && node.y !== undefined) {
           const t = node.x;
           node.x = node.y;
@@ -366,25 +331,29 @@ class GraphPlot extends BasePlot<
       return node;
     };
 
-    root.each(swap);
+    root.each(
+      swap as unknown as (
+        node: d3.HierarchyNode<ITreePlotData>
+      ) => d3.HierarchyNode<ITreePlotData>
+    );
 
-    this._roots.push(root);
+    this._roots.push(root as d3.HierarchyPointNode<ITreePlotData>);
 
     root.descendants().forEach((node) => {
-      if (this.isRadialTreeLayout()) {
+      if (this.isRadialDirectionality()) {
         node.data.offset = {
           y: offsetY + (offsetY > 0 ? radius : 0),
         };
       } else {
-        node.y += offsetY;
+        (node as d3.HierarchyPointNode<ITreePlotData>).y += offsetY;
       }
-      this._nodes.push(node);
+      this._nodes.push(node as d3.HierarchyPointNode<ITreePlotData>);
     });
 
     const edges = this.data.edges;
 
-    (root.links() as ITreeEdge[]).forEach((link) => {
-      if (this.isRadialTreeLayout()) {
+    (root.links() as unknown as IGraphEdge[]).forEach((link) => {
+      if (this.isRadialDirectionality()) {
         link.offset = {
           y: offsetY + (offsetY > 0 ? radius : 0),
         };
@@ -392,10 +361,14 @@ class GraphPlot extends BasePlot<
       link.directed = !!edges.find((edge) => {
         return (
           edge.directed &&
-          ((edge.source === link.source.data.id &&
-            edge.target === link.target.data.id) ||
-            ((edge.source as IGraphVertex).id === link.source.data.id &&
-              (edge.target as IGraphVertex).id === link.target.data.id))
+          ((edge.source ===
+            (link.source as d3.HierarchyPointNode<ITreePlotData>).data.id &&
+            edge.target ===
+              (link.target as d3.HierarchyPointNode<ITreePlotData>).data.id) ||
+            ((edge.source as IGraphVertex).id ===
+              (link.source as d3.HierarchyPointNode<ITreePlotData>).data.id &&
+              (edge.target as IGraphVertex).id ===
+                (link.target as d3.HierarchyPointNode<ITreePlotData>).data.id))
         );
       });
       this._links.push(link);
@@ -409,7 +382,9 @@ class GraphPlot extends BasePlot<
   }
 
   private buildHierarchyTrees() {
-    const padding = 200;
+    // Get the metrics for the SVG element.
+    const { size } = createSvg(undefined, this._layout);
+    const padding = 0.25 * Math.min(size.width, size.height);
 
     let contentWidth = padding;
     let contentHeight = 0;
@@ -417,19 +392,19 @@ class GraphPlot extends BasePlot<
     let prevMaxSize = 0;
 
     this._treeData.forEach((data, index) => {
-      const { treeWidth, treeHeight, maxSize } = this.buildHierarchyTreeLayout(
+      const { treeWidth, treeHeight, maxSize } = this.buildHierarchyTree(
         data,
-        this.isRadialTreeLayout()
+        this.isRadialDirectionality()
           ? prevMaxSize / 2 + index * padding
           : contentHeight
       );
       prevMaxSize += maxSize;
       contentWidth = Math.max(
         contentWidth,
-        this.isVerticalTreeLayout() ? treeWidth : treeHeight
+        this.isVerticalDirectionality() ? treeWidth : treeHeight
       );
       contentHeight +=
-        (this.isVerticalTreeLayout() ? treeHeight : treeWidth) + padding;
+        (this.isVerticalDirectionality() ? treeHeight : treeWidth) + padding;
       maxContentSize = Math.max(contentWidth, contentHeight, maxSize);
     });
 
@@ -480,61 +455,25 @@ class GraphPlot extends BasePlot<
       .map((vertex) => withChildren(vertex));
   }
 
-  private setupHierarchyTree() {
-    // Set the data for hierarchy tree structure.
-    if (this.container) {
-      const { size } = createSvg(
-        undefined,
-        this.layout,
-        this.isRadialTreeLayout()
-      );
-
-      const { contentWidth, contentHeight, maxContentSize } =
-        this.buildHierarchyTrees();
-
-      const viewPortMax = this.isVerticalTreeLayout()
-        ? size.width
-        : Math.min(size.width, size.height);
-      const scaleRate = viewPortMax / maxContentSize;
-      const translateForm = {
-        x: 0,
-        y: 0,
-      };
-      if (this.isVerticalTreeLayout()) {
-        translateForm.y = (size.height - contentHeight * scaleRate) / 2;
-      }
-      if (this.isHorizontalTreeLayout()) {
-        translateForm.x = (size.width - contentWidth * scaleRate) / 2;
-      }
-      // this.svgSel
-      //   ?.call(
-      //     this.zoomExt.transform,
-      //     d3.zoomIdentity
-      //       .translate(translateForm.x, translateForm.y)
-      //       .scale(scaleRate)
-      //   );
-    }
+  private isNoneDirectionality() {
+    return this.layout.directionality === "none";
   }
 
-  private isNoneTreeLayout() {
-    return this._treeLayout === "none";
+  private isRadialDirectionality() {
+    return this.layout.directionality === "radial";
   }
 
-  private isRadialTreeLayout() {
-    return this._treeLayout === "radial";
+  private isVerticalDirectionality() {
+    return this.layout.directionality === "vertical";
   }
 
-  private isVerticalTreeLayout() {
-    return this._treeLayout === "vertical";
-  }
-
-  private isHorizontalTreeLayout() {
-    return this._treeLayout === "horizontal";
+  private isHorizontalDirectionality() {
+    return this.layout.directionality === "horizontal";
   }
 
   private transition() {
     return {
-      duration: this.isNoneTreeLayout() ? 0 : 500,
+      duration: this.isNoneDirectionality() ? 0 : 500,
       ...this.layout.transition,
     };
   }
@@ -542,28 +481,44 @@ class GraphPlot extends BasePlot<
   private updateLinkSel() {
     // Update the link source and target positions.
     if (this.linkSel) {
-      this.linkSel
-        .transition()
-        .ease(d3.easeLinear)
-        .duration(this.transition().duration)
-        .attr("transform", null)
-        .attr("x1", ({ source }) => (source as IGraphVertex).x || 0)
-        .attr("y1", ({ source }) => (source as IGraphVertex).y || 0)
-        .attr("x2", ({ target }) => (target as IGraphVertex).x || 0)
-        .attr("y2", ({ target }) => (target as IGraphVertex).y || 0);
+      if (this.isNoneDirectionality()) {
+        this.linkSel
+          .attr("transform", null)
+          .attr("x1", ({ source }) => (source as IGraphVertex).x || 0)
+          .attr("y1", ({ source }) => (source as IGraphVertex).y || 0)
+          .attr("x2", ({ target }) => (target as IGraphVertex).x || 0)
+          .attr("y2", ({ target }) => (target as IGraphVertex).y || 0);
+      } else {
+        this.linkSel
+          .transition()
+          .ease(this._easeEffect)
+          .duration(this.transition().duration)
+          .attr("transform", null)
+          .attr("x1", ({ source }) => (source as IGraphVertex).x || 0)
+          .attr("y1", ({ source }) => (source as IGraphVertex).y || 0)
+          .attr("x2", ({ target }) => (target as IGraphVertex).x || 0)
+          .attr("y2", ({ target }) => (target as IGraphVertex).y || 0);
+      }
     }
   }
 
   private updateNodeSel() {
     // Update the node positions.
     if (this.nodeSel) {
-      this.nodeSel
-        .transition()
-        .ease(d3.easeLinear)
-        .duration(this.transition().duration)
-        .attr("transform", null)
-        .attr("cx", ({ x }) => x || 0)
-        .attr("cy", ({ y }) => y || 0);
+      if (this.isNoneDirectionality()) {
+        this.nodeSel
+          .attr("transform", null)
+          .attr("cx", ({ x }) => x || 0)
+          .attr("cy", ({ y }) => y || 0);
+      } else {
+        this.nodeSel
+          .transition()
+          .ease(this._easeEffect)
+          .duration(this.transition().duration)
+          .attr("transform", null)
+          .attr("cx", ({ x }) => x || 0)
+          .attr("cy", ({ y }) => y || 0);
+      }
     }
   }
 
@@ -571,22 +526,40 @@ class GraphPlot extends BasePlot<
     // Update the text positions.
     if (this.textSel) {
       const calcOffset = (r: number) => 5 + 2 * r;
-      this.textSel
-        .transition()
-        .ease(d3.easeLinear)
-        .duration(this.transition().duration)
-        .attr("transform", null)
-        .attr("x", (d) => d.x || 0)
-        .attr(
-          "y",
-          (d) =>
-            (d.y || 0) +
-            calcOffset(
-              (d as IGraphVertex).style?.fillRadius ??
-                (d as ITreeVertex).data?.style?.fillRadius ??
-                this._defaultRadius
-            )
-        );
+      if (this.isNoneDirectionality()) {
+        this.textSel
+          .attr("transform", null)
+          .attr("x", (d) => d.x || 0)
+          .attr(
+            "y",
+            (d) =>
+              (d.y || 0) +
+              calcOffset(
+                (d as IGraphVertex).style?.fillRadius ??
+                  (d as d3.HierarchyPointNode<ITreePlotData>).data?.style
+                    ?.fillRadius ??
+                  this._defaultRadius
+              )
+          );
+      } else {
+        this.textSel
+          .transition()
+          .ease(this._easeEffect)
+          .duration(this.transition().duration)
+          .attr("transform", null)
+          .attr("x", (d) => d.x || 0)
+          .attr(
+            "y",
+            (d) =>
+              (d.y || 0) +
+              calcOffset(
+                (d as IGraphVertex).style?.fillRadius ??
+                  (d as d3.HierarchyPointNode<ITreePlotData>).data?.style
+                    ?.fillRadius ??
+                  this._defaultRadius
+              )
+          );
+      }
     }
   }
 
@@ -594,7 +567,7 @@ class GraphPlot extends BasePlot<
    * Updates the plot by setting positions according to positions calculated by the force simulation.
    */
   private tick() {
-    if (!this.isNoneTreeLayout()) return;
+    if (!this.isNoneDirectionality()) return;
     // Update the link source and target positions.
     this.updateLinkSel();
 
@@ -675,7 +648,7 @@ class GraphPlot extends BasePlot<
    * @returns The drag behavior.
    */
   private drag() {
-    if (!this.isNoneTreeLayout()) {
+    if (!this.isNoneDirectionality()) {
       return;
     }
     const onDragStarted = (
@@ -711,7 +684,7 @@ class GraphPlot extends BasePlot<
   /** Zooms the plot to fit all of the data within the viewbox. */
   public zoomToFit() {
     // Get the size of the SVG element.
-    if (!this.contentSel || !this.isNoneTreeLayout()) return;
+    if (!this.contentSel || !this.isNoneDirectionality()) return;
     const {
       size: { width, height },
     } = createSvg(undefined, this.layout);
@@ -777,13 +750,12 @@ class GraphPlot extends BasePlot<
   // #endregion
 
   // #region Hierarchy Tree Layout Getters/Setters
-  public get treeLayout(): TTreeLayout {
-    return this._treeLayout ?? "none";
+  public get easeEffect(): (normalizedTime: number) => number {
+    return this._easeEffect;
   }
 
-  public set treeLayout(value: TTreeLayout) {
-    this._treeLayout = value;
-    this.setupSimulation();
+  public set easeEffect(value: (normalizedTime: number) => number) {
+    this._easeEffect = value;
   }
   // #endregion
 
@@ -806,6 +778,7 @@ class GraphPlot extends BasePlot<
       const { viewBox, style } = createSvg(undefined, value, true);
       this.svgSel.attr("viewBox", viewBox).attr("style", style);
     }
+    this.setupSimulation();
   }
   public get data(): IGraphPlotData {
     return { ...super.data };
@@ -848,7 +821,7 @@ class GraphPlot extends BasePlot<
    * Should be called when vertices or edges have been added or removed.
    */
   public simulate(alpha = 1.0) {
-    if (!this.isNoneTreeLayout()) {
+    if (!this.isNoneDirectionality()) {
       this.forceExt.stop();
       this.forceExt.alpha(alpha).stop();
       return;
@@ -861,106 +834,153 @@ class GraphPlot extends BasePlot<
    * Should be called when data is updated.
    */
   public render() {
+    // Perform the smooth transition animation.
+    if (this.svgSel) {
+      const { size } = createSvg(undefined, this.layout);
+      this.svgSel
+        .transition()
+        .ease(this._easeEffect)
+        .duration(this.transition().duration)
+        .attr(
+          "viewBox",
+          (this.isNoneDirectionality() || this.isRadialDirectionality()
+            ? [-size.width / 2, -size.height / 2, size.width, size.height]
+            : [0, 0, size.width, size.height]
+          ).join(" ")
+        );
+    }
+
     // Update the links.
-    const links = this.isNoneTreeLayout() ? this._data.edges : this._links;
+    const links = this.isNoneDirectionality() ? this._data.edges : this._links;
 
     this.linkSel = this.linkSel
       ?.data(links as IGraphEdge[], ({ source, target }) =>
         [
-          (source as ITreeVertex).data?.id ??
+          (source as d3.HierarchyPointNode<ITreePlotData>).data?.id ??
             (source as IGraphVertex).id ??
             source,
-          (target as ITreeVertex).data?.id ??
+          (target as d3.HierarchyPointNode<ITreePlotData>).data?.id ??
             (target as IGraphVertex).id ??
             target,
         ].join("-")
       )
       .join("line")
 
-      // Styling is applied based on defaults and the styling passed long with the data.
+      // Styling is applied based on defaults and the styling passed olong with the data.
       .attr("fill", (d) => d.style?.strokeColor ?? "#999")
       .attr("stroke", (d) => d.style?.strokeColor ?? "#999")
       .attr("stroke-opacity", 0.6)
       .attr("stroke-width", (d) => d.style?.strokeWidth ?? 1)
       .attr("marker-end", ({ directed }) => (directed ? "url(#arrow)" : null));
 
-    const nodes = this.isNoneTreeLayout() ? this._data.vertices : this._nodes;
+    const nodes = this.isNoneDirectionality()
+      ? this._data.vertices
+      : this._nodes;
 
     // Update the nodes.
     this.nodeSel = this.nodeSel
-      ?.data(nodes, (d) => (d as ITreeVertex).data?.id ?? d.id)
+      ?.data(
+        nodes as (IGraphVertex | d3.HierarchyPointNode<ITreePlotData>)[],
+        (d) =>
+          (d as IGraphVertex).id ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data.id
+      )
       .join("circle")
 
       // Styling is applied based on defaults and the styling passed along with the data.
       .attr(
         "r",
         (d) =>
-          d.style?.fillRadius ??
-          (d as ITreeVertex).data?.style?.fillRadius ??
+          (d as IGraphVertex).style?.fillRadius ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data?.style?.fillRadius ??
           this._defaultRadius
       )
       .attr(
         "fill",
         (d) =>
-          d.style?.fillColor ??
-          (d as ITreeVertex).data?.style?.fillColor ??
+          (d as IGraphVertex).style?.fillColor ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data?.style?.fillColor ??
           "#a1d7a1"
       )
       .attr(
         "fill-opacity",
-        (d) => `${d.expanded ?? (d as ITreeVertex).data?.expanded ? 0 : 100}%`
+        (d) =>
+          `${
+            (d as IGraphVertex).expanded ??
+            (d as d3.HierarchyPointNode<ITreePlotData>).data?.expanded
+              ? 0
+              : 100
+          }%`
       )
       .attr(
         "stroke",
         (d) =>
-          d.style?.strokeColor ??
-          (d as ITreeVertex).data?.style?.strokeColor ??
+          (d as IGraphVertex).style?.strokeColor ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data?.style
+            ?.strokeColor ??
           "#53b853"
       )
       .attr(
         "stroke-width",
         (d) =>
-          d.style?.strokeWidth ??
-          (d as ITreeVertex).data?.style?.strokeWidth ??
+          (d as IGraphVertex).style?.strokeWidth ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data?.style
+            ?.strokeWidth ??
           2.5
       );
 
     // Update the selection.
     const selectedVertices = this._data.vertices.filter((d) => d.selected);
     this.selectSel = this.selectSel
-      ?.data(selectedVertices, (d) => (d as ITreeVertex).data?.id ?? d.id)
+      ?.data(
+        selectedVertices,
+        (d) =>
+          (d as IGraphVertex).id ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data.id
+      )
       .join("circle")
       .attr(
         "r",
         (d) =>
           (d.style?.fillRadius ??
-            (d as ITreeVertex).data?.style?.fillRadius ??
+            (d as d3.HierarchyPointNode<ITreePlotData>).data?.style
+              ?.fillRadius ??
             this._defaultRadius) / 3
       )
       .attr("fill", "currentcolor");
 
     // Update the text.
     this.textSel = this.textSel
-      ?.data(nodes, (d) => (d as ITreeVertex).data?.id ?? d.id)
+      ?.data(
+        nodes as (IGraphVertex | d3.HierarchyPointNode<ITreePlotData>)[],
+        (d) =>
+          (d as IGraphVertex).id ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data.id
+      )
       .join("text")
-      .text((d) => d.label ?? (d as ITreeVertex).data?.label ?? "")
+      .text(
+        (d) =>
+          (d as IGraphVertex).label ??
+          (d as d3.HierarchyPointNode<ITreePlotData>).data?.label ??
+          ""
+      )
       .attr("text-anchor", "middle");
 
-    if (this.isNoneTreeLayout()) {
+    if (this.isNoneDirectionality()) {
       this.nodeSel
         ?.call(this.drag() as never)
         .on("click", (e: PointerEvent, d) => {
           switch (e.detail) {
             case 1:
-              this.notify("singleClickNode", d);
+              this.notify("singleClickNode", d as IGraphVertex);
               break;
             case 2:
-              this.notify("doubleClickNode", d);
+              this.notify("doubleClickNode", d as IGraphVertex);
               break;
           }
         });
       this.tick();
-    } else if (this.isRadialTreeLayout()) {
+    } else if (this.isRadialDirectionality()) {
       // Update for radial tree layout.
       const projectPoint = (x: number, y: number) => {
         return [(y = +y) * Math.cos((x -= Math.PI / 2)), y * Math.sin(x)];
@@ -968,55 +988,54 @@ class GraphPlot extends BasePlot<
 
       this.linkSel
         ?.transition()
-        .ease(d3.easeLinear)
+        .ease(this._easeEffect)
         .duration(this.transition().duration)
         .attr("fill", "none")
-        .attr(
-          "transform",
-          (d) => `translate(0, ${(d as ITreeEdge).offset?.y || 0})`
-        )
+        .attr("transform", (d) => `translate(0, ${d.offset?.y || 0})`)
         .attr(
           "x1",
           (d) =>
             projectPoint(
-              (d as ITreeEdge).source.x,
-              (d as ITreeEdge).source.y
+              (d.source as IGraphVertex).x as number,
+              (d.source as IGraphVertex).y as number
             )[0]
         )
         .attr(
           "y1",
           (d) =>
             projectPoint(
-              (d as ITreeEdge).source.x,
-              (d as ITreeEdge).source.y
+              (d.source as IGraphVertex).x as number,
+              (d.source as IGraphVertex).y as number
             )[1]
         )
         .attr(
           "x2",
           (d) =>
             projectPoint(
-              (d as ITreeEdge).target.x,
-              (d as ITreeEdge).target.y
+              (d.target as IGraphVertex).x as number,
+              (d.target as IGraphVertex).y as number
             )[0]
         )
         .attr(
           "y2",
           (d) =>
             projectPoint(
-              (d as ITreeEdge).target.x,
-              (d as ITreeEdge).target.y
+              (d.target as IGraphVertex).x as number,
+              (d.target as IGraphVertex).y as number
             )[1]
         );
 
       this.nodeSel
         ?.transition()
-        .ease(d3.easeLinear)
+        .ease(this._easeEffect)
         .duration(this.transition().duration)
         .attr("cx", 0)
         .attr("cy", 0)
         .attr("transform", (d) =>
           [
-            `translate(0, ${(d as ITreeVertex).data?.offset?.y || 0})`,
+            `translate(0, ${
+              (d as d3.HierarchyPointNode<ITreePlotData>).data?.offset?.y || 0
+            })`,
             `rotate(${((d.x ?? 0) * 180) / Math.PI - 90})`,
             `translate(${d.y}, 0)`,
           ].join(" ")
@@ -1026,18 +1045,21 @@ class GraphPlot extends BasePlot<
 
       this.textSel
         ?.transition()
-        .ease(d3.easeLinear)
+        .ease(this._easeEffect)
         .duration(this.transition().duration)
         .attr("x", 0)
         .attr("y", 0)
         .attr("transform", (d) =>
           [
-            `translate(0, ${(d as ITreeVertex).data?.offset?.y || 0})`,
+            `translate(0, ${
+              (d as d3.HierarchyPointNode<ITreePlotData>).data?.offset?.y || 0
+            })`,
             `rotate(${((d.x ?? 0) * 180) / Math.PI - 90})`,
             `translate(${d.y ?? 0}, 0)`,
             `rotate(${(-(d.x ?? 0) * 180) / Math.PI + 90})`,
             `translate(0, ${calcOffset(
-              (d as ITreeVertex).data?.style?.fillRadius ?? this._defaultRadius
+              (d as d3.HierarchyPointNode<ITreePlotData>).data?.style
+                ?.fillRadius ?? this._defaultRadius
             )})`,
           ].join(" ")
         );
@@ -1056,5 +1078,6 @@ export type {
   IGraphPlotData,
   IGraphPlotLayout,
   IGraphPlotEvents,
-  TTreeLayout,
+  EaseEffect,
+  GraphDirectionality,
 };

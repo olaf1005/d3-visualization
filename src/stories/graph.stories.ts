@@ -6,7 +6,8 @@ import {
   IGraphPlotData,
   IGraphPlotLayout,
   IGraphVertex,
-  TTreeLayout,
+  EaseEffect,
+  GraphDirectionality,
 } from "plots";
 import "./plots.css";
 
@@ -24,7 +25,9 @@ interface IGraphPlot {
   forceCenter?: number;
 
   /** The layout to use for the hierarchy tree plot. */
-  treeLayout?: TTreeLayout;
+  directionality?: GraphDirectionality;
+
+  easeEffect?: EaseEffect;
 }
 
 export default {
@@ -44,8 +47,21 @@ export default {
     forceCenter: {
       control: { type: "range", min: 0, max: 1.0, step: 0.01 },
     },
-    treeLayout: {
+    directionality: {
       options: ["none", "horizontal", "vertical", "radial"],
+      defaultValue: "none",
+      control: {
+        type: "radio",
+      },
+    },
+    easeEffect: {
+      options: [
+        "easeLinear",
+        "easeQuadInOut",
+        "easeElasticIn",
+        "easeBounceInOut",
+      ],
+      defaultValue: "easeLinear",
       control: {
         type: "radio",
       },
@@ -53,13 +69,35 @@ export default {
   },
 } as Meta<IGraphPlot>;
 
+const d3EaseEffect = (easeEffect: string) => {
+  let d3EaseEffect: (normalizedTime: number) => number = d3.easeLinear;
+  if (easeEffect === "easeLinear") {
+    d3EaseEffect = d3.easeLinear;
+  } else if (easeEffect === "easeQuadInOut") {
+    d3EaseEffect = d3.easeQuadInOut;
+  } else if (easeEffect === "easeElasticIn") {
+    d3EaseEffect = d3.easeElasticIn;
+  } else if (easeEffect === "easeBounceInOut") {
+    d3EaseEffect = d3.easeBounceInOut;
+  }
+  return d3EaseEffect;
+};
+
 const Template: Story<IGraphPlot> = (args) => {
   // Construct the container.
   const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the graph plot.
-  const { data, layout, forceNode, forceLink, forceCenter, treeLayout } = args;
+  const {
+    data,
+    layout,
+    forceNode,
+    forceLink,
+    forceCenter,
+    directionality,
+    easeEffect,
+  } = args;
   const plot = new GraphPlot(data, layout, container);
   if (forceNode) plot.forceNode = d3.forceManyBody().strength(-forceNode);
   if (forceLink) {
@@ -72,8 +110,11 @@ const Template: Story<IGraphPlot> = (args) => {
     plot.forceX = d3.forceX(0).strength(forceCenter);
     plot.forceY = d3.forceY(0).strength(forceCenter);
   }
-  if (treeLayout) {
-    plot.treeLayout = treeLayout;
+  if (easeEffect) {
+    plot.easeEffect = d3EaseEffect(easeEffect);
+  }
+  if (directionality) {
+    plot.layout = { ...plot.layout, directionality };
   }
   plot.render();
 
@@ -92,7 +133,6 @@ SingleNode.args = {
     ],
     edges: [],
   },
-  treeLayout: "none",
 };
 
 export const MultipleNodes = Template.bind({});
@@ -108,7 +148,6 @@ MultipleNodes.args = {
       { source: "B", target: "C", directed: false },
     ],
   },
-  treeLayout: "none",
 };
 
 const hierarchyNodesData = {
@@ -138,7 +177,6 @@ const hierarchyNodesData = {
 export const HierarchicalNodes = Template.bind({});
 HierarchicalNodes.args = {
   data: hierarchyNodesData,
-  treeLayout: "none",
 };
 
 export const TwoHubsOfNodes = Template.bind({});
@@ -184,18 +222,86 @@ TwoHubsOfNodes.args = {
     vertices,
     edges,
   },
-  treeLayout: "none",
+};
+
+const MultipleLayersOfNodesData = {
+  vertices: [
+    { id: "1", label: "1" },
+    { id: "1-1", label: "1-1" },
+    { id: "1-2", label: "1-2" },
+    { id: "1-3", label: "1-3" },
+    { id: "1-4", label: "1-4" },
+    { id: "1-5", label: "1-5" },
+    { id: "1-6", label: "1-6" },
+    { id: "1-1-1", label: "1-1-1" },
+    { id: "1-1-2", label: "1-1-2" },
+    { id: "1-1-3", label: "1-1-3" },
+    { id: "1-3-1", label: "1-3-1" },
+    { id: "1-3-2", label: "1-3-2" },
+    { id: "1-3-1-1", label: "1-3-1-1" },
+    { id: "1-3-1-2", label: "1-3-1-2" },
+    { id: "1-3-1-3", label: "1-3-1-3" },
+    { id: "1-3-1-4", label: "1-3-1-4" },
+    { id: "1-3-1-5", label: "1-3-1-5" },
+    { id: "1-3-2-1", label: "1-3-2-1" },
+    { id: "1-3-2-2", label: "1-3-2-2" },
+    { id: "1-3-2-3", label: "1-3-2-3" },
+    { id: "1-3-2-4", label: "1-3-2-4" },
+    { id: "1-3-2-5", label: "1-3-2-5" },
+    { id: "1-3-1-2-1", label: "1-3-1-2-1" },
+    { id: "1-3-1-2-2", label: "1-3-1-2-2" },
+    { id: "1-3-1-2-3", label: "1-3-1-2-3" },
+  ],
+  edges: [
+    { source: "1", target: "1-1", directed: true },
+    { source: "1", target: "1-2", directed: true },
+    { source: "1", target: "1-3", directed: true },
+    { source: "1", target: "1-4", directed: true },
+    { source: "1", target: "1-5", directed: true },
+    { source: "1", target: "1-6", directed: true },
+    { source: "1-1", target: "1-1-1", directed: true },
+    { source: "1-1", target: "1-1-2", directed: true },
+    { source: "1-1", target: "1-1-3", directed: true },
+    { source: "1-3", target: "1-3-1", directed: true },
+    { source: "1-3", target: "1-3-2", directed: true },
+    { source: "1-3-1", target: "1-3-1-1", directed: true },
+    { source: "1-3-1", target: "1-3-1-2", directed: true },
+    { source: "1-3-1", target: "1-3-1-3", directed: true },
+    { source: "1-3-1", target: "1-3-1-4", directed: true },
+    { source: "1-3-1", target: "1-3-1-5", directed: true },
+    { source: "1-3-2", target: "1-3-2-1", directed: true },
+    { source: "1-3-2", target: "1-3-2-2", directed: true },
+    { source: "1-3-2", target: "1-3-2-3", directed: true },
+    { source: "1-3-2", target: "1-3-2-4", directed: true },
+    { source: "1-3-2", target: "1-3-2-5", directed: true },
+    { source: "1-3-1-2", target: "1-3-1-2-1", directed: true },
+    { source: "1-3-1-2", target: "1-3-1-2-2", directed: true },
+    { source: "1-3-1-2", target: "1-3-1-2-3", directed: true },
+  ],
+};
+
+export const MultipleLayersOfNodes = Template.bind({});
+MultipleLayersOfNodes.args = {
+  data: MultipleLayersOfNodesData,
 };
 
 let interval: NodeJS.Timer | undefined = undefined;
 
-const TreeLayoutTemplate: Story<IGraphPlot> = (args) => {
+const AutoChangeLayoutTemplate: Story<IGraphPlot> = (args) => {
   // Construct the container.
   const container = document.createElement("div");
   container.className = "plot-container";
 
   // Set up the graph plot.
-  const { data, layout, forceNode, forceLink, forceCenter, treeLayout } = args;
+  const {
+    data,
+    layout,
+    forceNode,
+    forceLink,
+    forceCenter,
+    directionality,
+    easeEffect,
+  } = args;
   const plot = new GraphPlot(data, layout, container);
   if (forceNode) plot.forceNode = d3.forceManyBody().strength(-forceNode);
   if (forceLink) {
@@ -208,8 +314,11 @@ const TreeLayoutTemplate: Story<IGraphPlot> = (args) => {
     plot.forceX = d3.forceX(0).strength(forceCenter);
     plot.forceY = d3.forceY(0).strength(forceCenter);
   }
-  if (treeLayout) {
-    plot.treeLayout = treeLayout;
+  if (easeEffect) {
+    plot.easeEffect = d3EaseEffect(easeEffect);
+  }
+  if (directionality) {
+    plot.layout = { ...plot.layout, directionality };
   }
   plot.render();
 
@@ -218,12 +327,14 @@ const TreeLayoutTemplate: Story<IGraphPlot> = (args) => {
     interval = undefined;
   }
 
-  const treeLayouts = ["none", "horizontal", "vertical", "radial"];
+  const directionalities = ["none", "horizontal", "vertical", "radial"];
 
   interval = setInterval(() => {
-    plot.treeLayout = treeLayouts.find(
-      (t, i, a) => a[(a.length + i - 1) % a.length] == plot.treeLayout
-    ) as TTreeLayout;
+    const directionality = directionalities.find(
+      (t, i, a) =>
+        a[(a.length + i - 1) % a.length] == plot.layout.directionality
+    ) as GraphDirectionality;
+    plot.layout = { ...plot.layout, directionality };
     plot.simulate();
     plot.render();
   }, 5000);
@@ -231,10 +342,9 @@ const TreeLayoutTemplate: Story<IGraphPlot> = (args) => {
   return container;
 };
 
-export const TreeLayoutNodes = TreeLayoutTemplate.bind({});
-TreeLayoutNodes.args = {
+export const AutoChangeLayoutNodes = AutoChangeLayoutTemplate.bind({});
+AutoChangeLayoutNodes.args = {
   data: hierarchyNodesData,
-  treeLayout: "none",
   layout: {
     transition: {
       duration: 300,
@@ -248,7 +358,14 @@ const RealtimeTemplate: Story<IGraphPlot> = (args) => {
   container.className = "plot-container";
 
   // Set up the graph plot.
-  const { layout, forceNode, forceLink, forceCenter, treeLayout } = args;
+  const {
+    layout,
+    forceNode,
+    forceLink,
+    forceCenter,
+    directionality,
+    easeEffect,
+  } = args;
   const data: IGraphPlotData = { vertices: [], edges: [] };
   const plot = new GraphPlot(data, layout, container);
   if (forceNode) plot.forceNode = d3.forceManyBody().strength(-forceNode);
@@ -262,8 +379,11 @@ const RealtimeTemplate: Story<IGraphPlot> = (args) => {
     plot.forceX = d3.forceX(0).strength(forceCenter);
     plot.forceY = d3.forceY(0).strength(forceCenter);
   }
-  if (treeLayout) {
-    plot.treeLayout = treeLayout;
+  if (easeEffect) {
+    plot.easeEffect = d3EaseEffect(easeEffect);
+  }
+  if (directionality) {
+    plot.layout = { ...plot.layout, directionality };
   }
   plot.render();
 
@@ -292,6 +412,4 @@ const RealtimeTemplate: Story<IGraphPlot> = (args) => {
 };
 
 export const RealtimeNodes = RealtimeTemplate.bind({});
-RealtimeNodes.args = {
-  treeLayout: "none",
-};
+RealtimeNodes.args = {};
