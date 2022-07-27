@@ -54,7 +54,7 @@ interface ILinePlotEvents {
  * An object that persists, renders, and handles information about a line plot in 2D.
  */
 class LinePlot extends PlotWithAxis<
-  ILinePlotData[],
+  ILinePlotData,
   ILinePlotLayout,
   ILinePlotEvents
 > {
@@ -71,11 +71,7 @@ class LinePlot extends PlotWithAxis<
   private _lines: TLineSegment[];
   // #endregion
 
-  private connectLine = d3
-    .line()
-    .defined((d) => !isNaN(d[1]))
-    .x((d) => this.scaleX(d[0]))
-    .y((d) => this.scaleY(d[1]));
+  private _extra: ILinePlotData[] = [];
 
   /**
    * Constructs a new line plot.
@@ -84,16 +80,16 @@ class LinePlot extends PlotWithAxis<
    * @param container THe container to hold the plot. Optional.
    */
   public constructor(
-    data?: ILinePlotData | ILinePlotData[],
+    data?: ILinePlotData,
     layout?: ILinePlotLayout,
     container?: HTMLElement
   ) {
-    super(LinePlot.safeData(data), layout, container);
+    super(data, layout, container);
 
     // Set the data.
     this._container = container;
     this._layout = layout ?? {};
-    this._data = LinePlot.safeData(data);
+    this._data = data ?? { id: "", data: [] };
     this._pointIDs = [];
     this._points = [];
     this._lineIDs = [];
@@ -102,15 +98,6 @@ class LinePlot extends PlotWithAxis<
     // Perform setup tasks.
     this.setupElements();
     this.setupScales();
-  }
-
-  /**
-   * Make a safe data for a line plot.
-   * @param data to plot.
-   * @returns ILinePlotData[]
-   */
-  static safeData(data?: ILinePlotData | ILinePlotData[]): ILinePlotData[] {
-    return !data ? [] : Array.isArray(data) ? data : [data];
   }
 
   /**
@@ -127,6 +114,7 @@ class LinePlot extends PlotWithAxis<
     data.forEach((e) => {
       numbers = numbers.concat(...e.data.map((d) => cb(d) as number));
     });
+
     return d3.extent(numbers);
   }
 
@@ -135,10 +123,12 @@ class LinePlot extends PlotWithAxis<
     // Get the metrics for the SVG element.
     const { size, margin } = createSvg(undefined, this.layout);
 
+    const dataWithExtra = [this.data].concat(this.extra);
+
     // Find the range of values.
-    const extentX = this.extent(this.data, (d: ILinePoint) => d.x);
-    const extentY = this.extent(this.data, (d: ILinePoint) => d.y);
-    const extentColor = this.extent(this.data, (d: ILinePoint) => d.value);
+    const extentX = this.extent(dataWithExtra, (d: ILinePoint) => d.x);
+    const extentY = this.extent(dataWithExtra, (d: ILinePoint) => d.y);
+    const extentColor = this.extent(dataWithExtra, (d: ILinePoint) => d.value);
 
     // Create the scalars for the data.
     this.scaleX = d3
@@ -156,26 +146,28 @@ class LinePlot extends PlotWithAxis<
       ])
       .range([size.height - margin.bottom, margin.top]);
 
-    this.data.forEach((d) => {
+    const fSetupScaleColor = (d: ILinePlotData) => {
       this.scaleColors[d.id] = findColormap(d.colormap);
       if (extentColor[0] !== undefined && extentColor[1] !== undefined) {
         this.scaleColors[d.id].domain(extentColor);
       }
-    });
+    };
+    dataWithExtra.forEach(fSetupScaleColor);
 
     this._pointIDs = [];
     this._points = [];
     this._lineIDs = [];
     this._lines = [];
 
-    this.data.forEach((d) => {
+    const fSetupLine = (d: ILinePlotData) => {
       d.data.forEach((pt, i, a) => {
         this._pointIDs.push([d.id, pt.id].join("-"));
         this._points.push(pt);
         this._lineIDs.push([d.id, pt.id, a[i + 1]?.id].join("-"));
         this._lines.push(i === a.length - 1 ? [pt] : [pt, a[i + 1]]);
       });
-    });
+    };
+    dataWithExtra.forEach(fSetupLine);
   }
 
   /** Initializes the elements for the line plot. */
@@ -216,9 +208,11 @@ class LinePlot extends PlotWithAxis<
       size: { width, height },
     } = createSvg(undefined, this.layout);
 
+    const dataWithExtra = [this.data].concat(this.extra);
+
     // Get the bounds of the data.
-    const xExtent = this.extent(this.data, (d: ILinePoint) => d.x);
-    const yExtent = this.extent(this.data, (d: ILinePoint) => d.y);
+    const xExtent = this.extent(dataWithExtra, (d: ILinePoint) => d.x);
+    const yExtent = this.extent(dataWithExtra, (d: ILinePoint) => d.y);
 
     // Perform the zooming.
     const padding = 0.25;
@@ -262,17 +256,26 @@ class LinePlot extends PlotWithAxis<
       this.svgSel.attr("viewBox", viewBox).attr("style", style);
     }
   }
-  public get data(): ILinePlotData[] {
+  public get data(): ILinePlotData {
     return super.data;
   }
-  public set data(value: ILinePlotData | ILinePlotData[]) {
-    super.data = LinePlot.safeData(value);
+  public set data(value: ILinePlotData) {
+    super.data = value;
+    this.setupScales();
+  }
+  public get extra(): ILinePlotData[] {
+    return this._extra;
+  }
+  public set extra(value: ILinePlotData[]) {
+    this._extra.push(...value);
     this.setupScales();
   }
   // #endregion
 
   /** Renders a plot of the graph. */
   public render() {
+    const dataWithExtra = [this.data].concat(this.extra);
+
     const dataID = (combined: string, id: string) =>
       combined.substring(0, combined.lastIndexOf(id) - 1);
     const dataIDFromPoint = (d: ILinePoint, i: number) =>
@@ -280,9 +283,9 @@ class LinePlot extends PlotWithAxis<
     const dataIDFromLine = (d: TLineSegment, i: number) =>
       dataID(this._lineIDs[i], d.map((e) => e.id).join("-"));
     const parentFromPoint = (d: ILinePoint, i: number) =>
-      this.data.find((e) => e.id === dataIDFromPoint(d, i));
+      dataWithExtra.find((e) => e.id === dataIDFromPoint(d, i));
     const parentFromLine = (d: TLineSegment, i: number) =>
-      this.data.find((e) => e.id === dataIDFromLine(d, i));
+      dataWithExtra.find((e) => e.id === dataIDFromLine(d, i));
     // Update the points.
     this.pointsSel = this.pointsSel
       ?.data(
@@ -323,7 +326,6 @@ class LinePlot extends PlotWithAxis<
       .defined((d) => !isNaN(d[1]))
       .x((d) => this.scaleX(d[0]))
       .y((d) => this.scaleY(d[1]));
-
     this.linesSel = this.linesSel
       ?.data(this._lines, (d, i) => this._lineIDs[i])
       .join("path")
@@ -335,17 +337,15 @@ class LinePlot extends PlotWithAxis<
       )
       .attr("stroke-width", (d) => d[0].style?.strokeWidth ?? 1);
 
-    if (this.data.length > 1) {
-      this.labelsSel = this.labelsSel
-        ?.data(this.data, (d) => d.id)
-        .join("text")
-        .attr("x", (d) => this.scaleX(d.data[d.data.length - 1].x ?? 0))
-        .attr("y", (d) => this.scaleY(d.data[d.data.length - 1].y ?? 0))
-        .attr("alignment-baseline", "middle")
-        .attr("text-anchor", "end")
-        .attr("fill", (d) => d.color ?? null)
-        .text((d) => d.label ?? d.id ?? "");
-    }
+    this.labelsSel = this.labelsSel
+      ?.data(dataWithExtra, (d) => d.id)
+      .join("text")
+      .attr("x", (d) => this.scaleX(d.data[d.data.length - 1].x ?? 0))
+      .attr("y", (d) => this.scaleY(d.data[d.data.length - 1].y ?? 0))
+      .attr("alignment-baseline", "middle")
+      .attr("text-anchor", "end")
+      .attr("fill", (d) => d.color ?? null)
+      .text((d) => d.label ?? d.id ?? "");
   }
 }
 
