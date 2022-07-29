@@ -28,7 +28,7 @@ interface IViolinPlotData {
 /** Represents the layout information for the plot. */
 interface IViolinPlotLayout extends IPlotLayout<"violin"> {}
 
-/** The events that may be emitted from a line plot. */
+/** The events that may be emitted from a violin plot. */
 interface IViolinPlotEvents {
   /** An event listener that is called when a point is called exactly once (does not fire on double click). */
   singleClickPoint: (bin: IViolinChannel) => void;
@@ -67,7 +67,7 @@ class ViolinPlot extends PlotWithAxis<
   };
 
   /**
-   * Constructs a new line plot.
+   * Constructs a new violin plot.
    * @param data Data to be plotted. Optional.
    * @param layout Layout information to be used. Optional.
    * @param container THe container to hold the plot. Optional.
@@ -120,7 +120,7 @@ class ViolinPlot extends PlotWithAxis<
     return d3.extent(numbers);
   }
 
-  /** Initializes the scales used to transform data for the line plot. */
+  /** Initializes the scales used to transform data for the violin plot. */
   private setupScales() {
     // Get the metrics for the SVG element.
     const { size, margin } = createSvg(undefined, this.layout);
@@ -145,7 +145,7 @@ class ViolinPlot extends PlotWithAxis<
       .range([size.height - margin.bottom, margin.top]);
   }
 
-  /** Initializes the elements for the line plot. */
+  /** Initializes the elements for the violin plot. */
   private setupElements() {
     if (this.container) {
       // Create the SVG element.

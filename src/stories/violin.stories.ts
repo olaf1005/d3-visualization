@@ -4,7 +4,7 @@ import { ViolinPlot, IViolinPlotData, IViolinPlotLayout } from "plots";
 interface IViolinPlot {
   /** The data to supply the violin plot. */
   data?: IViolinPlotData;
-  /** The layout to use for the line plot. */
+  /** The layout to use for the violin plot. */
   layout: IViolinPlotLayout;
 }
 
@@ -17,7 +17,7 @@ const Template: Story<IViolinPlot> = (args) => {
   const container = document.createElement("div");
   container.className = "plot-container";
 
-  // Set up the line plot.
+  // Set up the violin plot.
   const { data, layout } = args;
 
   const plot = new ViolinPlot(data, layout, container);
