@@ -2,12 +2,16 @@ import * as d3 from "d3";
 import { IPlotLayout, IPlotStyle, PlotWithAxis, Selection } from "types";
 import { createSvg, findColormap } from "utility";
 
-type TLineSegment = ILinePoint[];
+/** The type of datum for each line between 2 points. */
+type ILineSegment<TDatum extends ILinePoint = ILinePoint> = TDatum[];
 
 /** The type of datum for each line plot point. */
 interface ILinePoint {
   /** A unique identifier for the point. */
   id: string;
+
+  /** The text label for the point. */
+  label?: string;
 
   /** The x-component of the datum. */
   x?: number;
@@ -25,14 +29,12 @@ interface ILinePoint {
 
 /** Represents the data contained in the plot. */
 interface ILinePlotData<TDatum extends ILinePoint = ILinePoint> {
-  /** A unique identifier for data to plot. */
-  id: string;
   /** The text label for data to plot. */
   label?: string;
   /** The data to plot. */
   data: TDatum[];
   /** The color to use in plot. */
-  color?: string;
+  // color?: string;
   /** The colormap to use for mapping values to colors. */
   colormap?: string;
 }
@@ -43,9 +45,9 @@ interface ILinePlotLayout extends IPlotLayout<"line"> {}
 /** The events that may be emitted from a line plot. */
 interface ILinePlotEvents {
   /** An event listener that is called when a point is called exactly once (does not fire on double click). */
-  singleClickPoint: (bin: ILinePoint) => void;
+  singleClickPoint: (point: ILinePoint) => void;
   /** An event listener that is called when a point is clicked exactly twice (does not fire on single click). */
-  doubleClickPoint: (bin: ILinePoint) => void;
+  doubleClickPoint: (point: ILinePoint) => void;
   /** An event listener that is called when the empty space is clicked. */
   clickSpace: () => void;
 }
@@ -60,18 +62,15 @@ class LinePlot extends PlotWithAxis<
 > {
   // #region DOM
   private pointsSel?: Selection<SVGGElement, ILinePoint, SVGGElement>;
-  private linesSel?: Selection<SVGGElement, TLineSegment, SVGGElement>;
+  private linesSel?: Selection<SVGGElement, ILineSegment, SVGGElement>;
   private labelsSel?: Selection<SVGGElement, ILinePlotData, SVGGElement>;
+  private pointLabelsSel?: Selection<SVGGElement, ILinePoint, SVGGElement>;
   // #endregion
 
   // #region Data
-  private _pointIDs: string[];
   private _points: ILinePoint[];
-  private _lineIDs: string[];
-  private _lines: TLineSegment[];
+  private _lines: ILineSegment[];
   // #endregion
-
-  private _extra: ILinePlotData[] = [];
 
   /**
    * Constructs a new line plot.
@@ -89,10 +88,8 @@ class LinePlot extends PlotWithAxis<
     // Set the data.
     this._container = container;
     this._layout = layout ?? {};
-    this._data = data ?? { id: "", data: [] };
-    this._pointIDs = [];
+    this._data = data ?? { data: [] };
     this._points = [];
-    this._lineIDs = [];
     this._lines = [];
 
     // Perform setup tasks.
@@ -103,17 +100,15 @@ class LinePlot extends PlotWithAxis<
   /**
    * Get the min and max simultaneously from the data array to plot.
    * @param data The data array to plot.
-   * @param cb The callback to pick a value for extent.
+   * @param pickValue The callback to pick a value for extent.
    * @returns The min and max simultaneously.
    */
   private extent(
-    data: ILinePlotData[],
-    cb: (d: ILinePoint) => number | undefined
+    data: ILinePlotData,
+    pickValue: (d: ILinePoint) => number | undefined
   ) {
-    let numbers: number[] = [];
-    data.forEach((e) => {
-      numbers = numbers.concat(...e.data.map((d) => cb(d) as number));
-    });
+    const numbers: number[] = [];
+    numbers.push(...data.data.map((d) => pickValue(d) as number));
 
     return d3.extent(numbers);
   }
@@ -123,12 +118,10 @@ class LinePlot extends PlotWithAxis<
     // Get the metrics for the SVG element.
     const { size, margin } = createSvg(undefined, this.layout);
 
-    const dataWithExtra = [this.data].concat(this.extra);
-
     // Find the range of values.
-    const extentX = this.extent(dataWithExtra, (d: ILinePoint) => d.x);
-    const extentY = this.extent(dataWithExtra, (d: ILinePoint) => d.y);
-    const extentColor = this.extent(dataWithExtra, (d: ILinePoint) => d.value);
+    const extentX = this.extent(this._data, (d: ILinePoint) => d.x);
+    const extentY = this.extent(this._data, (d: ILinePoint) => d.y);
+    const extentColor = this.extent(this._data, (d: ILinePoint) => d.value);
 
     // Create the scalars for the data.
     this.scaleX = d3
@@ -146,28 +139,20 @@ class LinePlot extends PlotWithAxis<
       ])
       .range([size.height - margin.bottom, margin.top]);
 
-    const fSetupScaleColor = (d: ILinePlotData) => {
-      this.scaleColors[d.id] = findColormap(d.colormap);
-      if (extentColor[0] !== undefined && extentColor[1] !== undefined) {
-        this.scaleColors[d.id].domain(extentColor);
-      }
-    };
-    dataWithExtra.forEach(fSetupScaleColor);
+    this.scaleColors[this._data.label ?? "label"] = findColormap(
+      this._data.colormap
+    );
+    if (extentColor[0] !== undefined && extentColor[1] !== undefined) {
+      this.scaleColors[this._data.label ?? "label"].domain(extentColor);
+    }
 
-    this._pointIDs = [];
     this._points = [];
-    this._lineIDs = [];
     this._lines = [];
 
-    const fSetupLine = (d: ILinePlotData) => {
-      d.data.forEach((pt, i, a) => {
-        this._pointIDs.push([d.id, pt.id].join("-"));
-        this._points.push(pt);
-        this._lineIDs.push([d.id, pt.id, a[i + 1]?.id].join("-"));
-        this._lines.push(i === a.length - 1 ? [pt] : [pt, a[i + 1]]);
-      });
-    };
-    dataWithExtra.forEach(fSetupLine);
+    this._data.data.forEach((pt, i, a) => {
+      this._points.push(pt);
+      this._lines.push(i === a.length - 1 ? [pt] : [pt, a[i + 1]]);
+    });
   }
 
   /** Initializes the elements for the line plot. */
@@ -194,6 +179,7 @@ class LinePlot extends PlotWithAxis<
       this.linesSel = this.contentSel.append("g").selectAll("line");
       this.pointsSel = this.contentSel.append("g").selectAll("circle");
       this.labelsSel = this.contentSel.append("g").selectAll("text");
+      this.pointLabelsSel = this.contentSel.append("g").selectAll("text");
 
       this.setupAxisElements();
     }
@@ -208,11 +194,9 @@ class LinePlot extends PlotWithAxis<
       size: { width, height },
     } = createSvg(undefined, this.layout);
 
-    const dataWithExtra = [this.data].concat(this.extra);
-
     // Get the bounds of the data.
-    const xExtent = this.extent(dataWithExtra, (d: ILinePoint) => d.x);
-    const yExtent = this.extent(dataWithExtra, (d: ILinePoint) => d.y);
+    const xExtent = this.extent(this._data, (d: ILinePoint) => d.x);
+    const yExtent = this.extent(this._data, (d: ILinePoint) => d.y);
 
     // Perform the zooming.
     const padding = 0.25;
@@ -263,34 +247,15 @@ class LinePlot extends PlotWithAxis<
     super.data = value;
     this.setupScales();
   }
-  public get extra(): ILinePlotData[] {
-    return this._extra;
-  }
-  public set extra(value: ILinePlotData[]) {
-    this._extra.push(...value);
-    this.setupScales();
-  }
   // #endregion
 
   /** Renders a plot of the graph. */
   public render() {
-    const dataWithExtra = [this.data].concat(this.extra);
-
-    const dataID = (combined: string, id: string) =>
-      combined.substring(0, combined.lastIndexOf(id) - 1);
-    const dataIDFromPoint = (d: ILinePoint, i: number) =>
-      dataID(this._pointIDs[i], d.id);
-    const dataIDFromLine = (d: TLineSegment, i: number) =>
-      dataID(this._lineIDs[i], d.map((e) => e.id).join("-"));
-    const parentFromPoint = (d: ILinePoint, i: number) =>
-      dataWithExtra.find((e) => e.id === dataIDFromPoint(d, i));
-    const parentFromLine = (d: TLineSegment, i: number) =>
-      dataWithExtra.find((e) => e.id === dataIDFromLine(d, i));
     // Update the points.
     this.pointsSel = this.pointsSel
       ?.data(
         this._points.filter((d) => d.style?.fillRadius ?? 0),
-        (d, i) => this._pointIDs[i]
+        (d) => d.id
       )
       .join("circle")
       .on("click", (e: PointerEvent, d) => {
@@ -308,10 +273,10 @@ class LinePlot extends PlotWithAxis<
       .attr("cx", (d) => this.scaleX(d.x ?? 0))
       .attr("cy", (d) => this.scaleY(d.y ?? 0))
       .attr("r", (d) => d.style?.fillRadius ?? 0)
-      .attr("fill", (d, i) =>
+      .attr("fill", (d) =>
         d.value !== undefined
-          ? this.scaleColors[dataIDFromPoint(d, i)](d.value)
-          : parentFromPoint(d, i)?.color ?? d.style?.fillColor ?? "#53b853"
+          ? this.scaleColors[this._data.label ?? "label"](d.value)
+          : d.style?.fillColor ?? "green"
       )
       .attr("stroke", (d) =>
         d.weight !== undefined
@@ -327,25 +292,54 @@ class LinePlot extends PlotWithAxis<
       .x((d) => this.scaleX(d[0]))
       .y((d) => this.scaleY(d[1]));
     this.linesSel = this.linesSel
-      ?.data(this._lines, (d, i) => this._lineIDs[i])
+      ?.data(this._lines)
       .join("path")
       .attr("d", (d) => connectLine(d.map((e) => [e.x ?? 0, e.y ?? 0])))
-      .attr("stroke", (d, i) =>
-        d[0].value !== undefined
-          ? this.scaleColors[dataIDFromLine(d, i)](d[0].value)
-          : parentFromLine(d, i)?.color ?? d[0].style?.strokeColor ?? "#53b853"
+      .attr(
+        "stroke",
+        (d) =>
+          d[0].style?.strokeColor ??
+          (this._data.colormap !== undefined
+            ? this.scaleColors[this._data.label ?? "label"](
+                (d[0].value ?? 0) * (d[0].weight ?? 0.5) +
+                  (d.length == 2 ? (d[1].value ?? 0) * (d[1].weight ?? 0.5) : 0)
+              )
+            : "green")
       )
       .attr("stroke-width", (d) => d[0].style?.strokeWidth ?? 1);
 
     this.labelsSel = this.labelsSel
-      ?.data(dataWithExtra, (d) => d.id)
+      ?.data([this._data])
       .join("text")
       .attr("x", (d) => this.scaleX(d.data[d.data.length - 1].x ?? 0))
       .attr("y", (d) => this.scaleY(d.data[d.data.length - 1].y ?? 0))
       .attr("alignment-baseline", "middle")
       .attr("text-anchor", "end")
-      .attr("fill", (d) => d.color ?? null)
-      .text((d) => d.label ?? d.id ?? "");
+      .attr("fill", "green")
+      .text((d) => d.label ?? "label");
+
+    this.pointLabelsSel = this.pointLabelsSel
+      ?.data(
+        this._points.filter((d) => d.label ?? 0),
+        (d) => d.id
+      )
+      .join("text")
+      .attr("x", (d) => this.scaleX(d.x ?? 0))
+      .attr("y", (d) => this.scaleY(d.y ?? 0))
+      .attr("alignment-baseline", "middle")
+      .attr("text-anchor", "end")
+      .attr(
+        "fill",
+        (d) =>
+          d.style?.strokeColor ??
+          (this._data.colormap !== undefined
+            ? this.scaleColors[this._data.label ?? "label"](
+                (d.value ?? 0) * (d.weight ?? 0.5)
+              )
+            : "green")
+      )
+      .style("font-size", "12px")
+      .text((d) => d.label ?? "label");
   }
 }
 
