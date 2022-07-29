@@ -49,8 +49,8 @@ for (let i = -100; i <= 100; i += 2) {
 SimpleLine.args = {
   data: {
     id: "test",
-    label: "simple",
     data,
+    label: "Quadratic Function",
   },
   layout: {
     axes: {
@@ -108,14 +108,14 @@ for (let k = 0, show = true; k < Math.PI * 4; k += 0.05, show = !show) {
 DashLine.args = {
   data: {
     id: "test",
-    label: "dash",
+    label: "Dash",
     data,
     colormap: "rainbow",
   },
   layout: {
     axes: {
       x: {
-        label: "Different Color Line",
+        label: "Dash Line",
       },
     },
   },
@@ -140,7 +140,7 @@ data.push({
 SpirographLine.args = {
   data: {
     id: "test",
-    label: "spirograph",
+    label: "Spirograph",
     data,
     colormap: "rainbow",
   },
@@ -269,7 +269,7 @@ const MarketTemplate: Story<ILinePlot> = (args) => {
   // Set up the line plot.
   const data: ILinePlotData<ILinePoint> = {
     id: "test",
-    label: "market",
+    label: "Market",
     data: [{ id: "0", x: 0, y: 0, value: 0 }],
     colormap: "RdYlGn",
   };
