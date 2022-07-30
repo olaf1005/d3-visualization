@@ -33,8 +33,6 @@ interface ILinePlotData<TDatum extends ILinePoint = ILinePoint> {
   label?: string;
   /** The data to plot. */
   data: TDatum[];
-  /** The color to use in plot. */
-  // color?: string;
   /** The colormap to use for mapping values to colors. */
   colormap?: string;
 }

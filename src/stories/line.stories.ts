@@ -77,7 +77,7 @@ data.forEach((d, i) => {
 });
 DifferentColorLine.args = {
   data: {
-    label: "diffColor",
+    label: "DiffColor",
     data,
     colormap: "rainbow",
   },
@@ -104,14 +104,14 @@ for (let k = 0, show = true; k < Math.PI * 4; k += 0.05, show = !show) {
 }
 DashLine.args = {
   data: {
-    label: "dash",
+    label: "Dash",
     data,
     colormap: "rainbow",
   },
   layout: {
     axes: {
       x: {
-        label: "Different Color Line",
+        label: "Dash Line",
       },
     },
   },
@@ -135,7 +135,7 @@ data.push({
 });
 SpirographLine.args = {
   data: {
-    label: "spirograph",
+    label: "Spirograph",
     data,
     colormap: "rainbow",
   },
@@ -234,7 +234,7 @@ const MarketTemplate: Story<ILinePlot> = (args) => {
 
   // Set up the line plot.
   const data: ILinePlotData<ILinePoint> = {
-    label: "market",
+    label: "Market",
     data: [{ id: "0", x: 0, y: 0, value: 0 }],
     colormap: "RdYlGn",
   };
