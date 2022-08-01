@@ -57,6 +57,11 @@ SimpleHeatmap.args = {
   data: {
     data: data,
   },
+  layout: {
+    colorBar: {
+      tickmarkCount: 10,
+    },
+  },
 };
 
 export const ChessBoardHeatmap = Template.bind({});

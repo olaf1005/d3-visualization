@@ -38,6 +38,8 @@ interface IHeatmapPlotLayout extends IPlotLayout<"heatmap"> {
     width?: number;
     /** Define the gap percent between the color bar and the heatmap plot based on plot width. */
     gap?: number;
+    /** Define the tickmark count for the color bar */
+    tickmarkCount?: number;
   };
   /** Define the axis infos for the heatmap plot. */
   groups?: {
@@ -89,6 +91,7 @@ class HeatmapPlot extends BasePlot<
     number,
     SVGLinearGradientElement
   >;
+  private tickmarkLinesSel?: Selection<SVGGElement, number, SVGGElement>;
   private colorStopValuesSel?: Selection<SVGGElement, number, SVGGElement>;
   protected xAxisSelection?: AxisSelection;
   protected yAxisSelection?: AxisSelection;
@@ -104,7 +107,8 @@ class HeatmapPlot extends BasePlot<
     colorBar: {
       show: true,
       width: 8,
-      gap: 2,
+      gap: 4,
+      tickmarkCount: 5,
     },
   };
   // #endregion
@@ -127,6 +131,7 @@ class HeatmapPlot extends BasePlot<
     this._layout = {
       ...this._defaultLayout,
       ...layout,
+      colorBar: { ...this._defaultLayout.colorBar, ...layout?.colorBar },
     };
     this._container = container;
 
@@ -183,8 +188,8 @@ class HeatmapPlot extends BasePlot<
   /** Reset the axes. */
   protected resetAxis() {
     if (this.svgSel) {
-      this.xAxis(this.xAxisSelection, this.scaleX);
-      this.yAxis(this.yAxisSelection, this.scaleY);
+      if (this.xAxisSelection) this.xAxis(this.xAxisSelection, this.scaleX);
+      if (this.yAxisSelection) this.yAxis(this.yAxisSelection, this.scaleY);
     }
   }
 
@@ -202,6 +207,7 @@ class HeatmapPlot extends BasePlot<
       this.setupAxisElements();
 
       if (this.layout.colorBar?.show) {
+        const tickmarkGap = 10;
         this.colorBoard = this.svgSel
           .append("g")
           .attr(
@@ -209,7 +215,8 @@ class HeatmapPlot extends BasePlot<
             `translate(${
               size.width -
               margin.right -
-              ((size.width * (this.layout.colorBar?.width ?? 10)) / 100 ?? 0)
+              ((size.width * (this.layout.colorBar?.width ?? 10)) / 100 ?? 0) -
+              tickmarkGap
             }, ${margin.top})`
           );
 
@@ -220,7 +227,20 @@ class HeatmapPlot extends BasePlot<
           .attr("gradientTransform", "rotate(90)")
           .selectAll("stop");
 
-        this.colorStopValuesSel = this.colorBoard.append("g").selectAll("text");
+        this.tickmarkLinesSel = this.colorBoard
+          .append("g")
+          .attr(
+            "transform",
+            `translate(${
+              (size.width * (this.layout.colorBar?.width ?? 10)) / 100 ?? 0
+            }, 0)`
+          )
+          .selectAll("line");
+
+        this.colorStopValuesSel = this.colorBoard
+          .append("g")
+          .attr("transform", `translate(${tickmarkGap}, 2)`)
+          .selectAll("text");
 
         this.colorBoard
           .append("rect")
@@ -256,8 +276,10 @@ class HeatmapPlot extends BasePlot<
       const axisLabelColor = this._layout.style?.color ?? "";
 
       // Create the axes.
-      this.xAxisSelection = this.svgSel.append("g").lower();
-      this.yAxisSelection = this.svgSel.append("g").lower();
+      if (this._layout.groups?.x?.labels)
+        this.xAxisSelection = this.svgSel.append("g").lower();
+      if (this._layout.groups?.y?.labels)
+        this.yAxisSelection = this.svgSel.append("g").lower();
 
       // Add x axis label
       this.svgSel
@@ -380,16 +402,44 @@ class HeatmapPlot extends BasePlot<
         .attr("offset", (d) => `${Math.round(scaleValue(d) * 100)}%`)
         .attr("stop-color", (d) => this.scaleColor(1 - scaleValue(d)));
 
+      const tickmarkCount = this.layout.colorBar?.tickmarkCount ?? 5;
+      const tickmarkInterval = (range * 1.0) / (tickmarkCount - 1);
+      const tickmarks: number[] = [minValue];
+      for (let i = 1; i < tickmarkCount - 1; i++) {
+        tickmarks.push(Math.floor(minValue + tickmarkInterval * i));
+      }
+      tickmarks.push(maxValue);
+
+      const calcY = (d: number, i: number) => {
+        let result =
+          (1 - (d - minValue) / range) *
+          (size.height - margin.bottom - margin.top);
+        if (i == 0) result -= 1;
+        else if (i == tickmarkCount - 1) result += 1;
+
+        return result;
+      };
+
       this.colorStopValuesSel = this.colorStopValuesSel
-        ?.data([minValue, maxValue])
+        ?.data(tickmarks)
         .join("text")
         .attr("x", (size.width * (this.layout.colorBar?.width ?? 0)) / 100 ?? 0)
-        .attr(
-          "y",
-          (d, i) => (1 - i) * (size.height - margin.bottom - margin.top)
+        .attr("y", calcY)
+        .attr("dominant-baseline", (d, i) =>
+          i === tickmarkCount - 1 ? "hanging" : "auto"
         )
-        .attr("dominant-baseline", (d, i) => (1 - i === 0 ? "hanging" : "auto"))
+        .attr("alignment-baseline", "middle")
         .text((d) => d);
+
+      this.tickmarkLinesSel = this.tickmarkLinesSel
+        ?.data(tickmarks)
+        .join("line")
+
+        // Styling is applied based on defaults and the styling passed along with the data.
+        .attr("x2", 6)
+        .attr("y1", calcY)
+        .attr("y2", calcY)
+        .attr("stroke", "currentColor");
     }
 
     const onClickCell = (e: PointerEvent, cell: IHeatmapCell) => {
