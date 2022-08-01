@@ -40,6 +40,10 @@ interface IHeatmapPlotLayout extends IPlotLayout<"heatmap"> {
     gap?: number;
     /** Define the tickmark count for the color bar */
     tickmarkCount?: number;
+    /** Define the min value for the color bar */
+    min?: number;
+    /** Define the max value for the color bar */
+    max?: number;
   };
   /** Define the axis infos for the heatmap plot. */
   groups?: {
@@ -377,14 +381,19 @@ class HeatmapPlot extends BasePlot<
   /** Renders a plot of the graph. */
   public render() {
     // Get the min value from the cells.
-    const minValue = Math.min(
-      ...this.data.data.map((col) => Math.min(...col.map((c) => c.value)))
-    );
+    const minValue =
+      this._layout.colorBar?.min ??
+      Math.min(
+        ...this.data.data.map((col) => Math.min(...col.map((c) => c.value)))
+      );
     // Get the max value from the cells.
-    const maxValue = Math.max(
-      1,
-      ...this.data.data.map((col) => Math.max(...col.map((c) => c.value)))
-    );
+    const maxValue =
+      this._layout.colorBar?.max ??
+      Math.max(
+        1,
+        ...this.data.data.map((col) => Math.max(...col.map((c) => c.value)))
+      );
+
     // Whether to include the selected cell.
     const includeSelected = !!this.data.data.find(
       (col) => !!col.find((cell) => cell.selected)
@@ -429,6 +438,7 @@ class HeatmapPlot extends BasePlot<
           i === tickmarkCount - 1 ? "hanging" : "auto"
         )
         .attr("alignment-baseline", "middle")
+        .style("font-size", "11px")
         .text((d) => d);
 
       this.tickmarkLinesSel = this.tickmarkLinesSel

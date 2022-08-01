@@ -353,5 +353,9 @@ ThermalConductivity.args = {
         label: "Thermal Heatmap",
       },
     },
+    colorBar: {
+      min: 0,
+      max: 100,
+    },
   },
 };
