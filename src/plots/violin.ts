@@ -48,8 +48,20 @@ class ViolinPlot extends PlotWithAxis<
 > {
   // #region DOM
   private curveSels?: Selection<SVGGElement, unknown, HTMLElement>[] = [];
-  private dotsSels?: Selection<SVGGElement, number, SVGGElement>[] = [];
+  private dotsSels?: Selection<SVGGElement, [number, number], SVGGElement>[] =
+    [];
   private boxplotSels?: Selection<SVGGElement, unknown, HTMLElement>[] = [];
+  // #endregion
+
+  // #region extent
+  private extentX: [number, number] | [undefined, undefined] = [
+    undefined,
+    undefined,
+  ];
+  private extentY: [number, number] | [undefined, undefined] = [
+    undefined,
+    undefined,
+  ];
   // #endregion
 
   public static generate = (baseNumber = 500, count = 800) => {
@@ -94,7 +106,7 @@ class ViolinPlot extends PlotWithAxis<
    * @param data The data array to plot.
    * @returns The min and max simultaneously.
    */
-  private extentX(data: IViolinPlotData) {
+  private calcExtentX(data: IViolinPlotData) {
     const numbers: number[] = [];
     data.channels.forEach((e) => {
       numbers.push(...e.values);
@@ -108,7 +120,7 @@ class ViolinPlot extends PlotWithAxis<
    * @param data The data array to plot.
    * @returns The min and max simultaneously.
    */
-  private extentY(data: IViolinPlotData) {
+  private calcExtentY(data: IViolinPlotData) {
     const threshold = 20;
     const numbers: number[] = [];
     data.channels.forEach((e) => {
@@ -122,19 +134,37 @@ class ViolinPlot extends PlotWithAxis<
 
   /** Initializes the scales used to transform data for the violin plot. */
   private setupScales() {
+    if (this.curveSels) {
+      this.curveSels.forEach((d) => {
+        d.selectAll("*").remove();
+      });
+    }
+
+    if (this.boxplotSels) {
+      this.boxplotSels.forEach((d) => {
+        d.selectAll("*").remove();
+      });
+    }
+
+    if (this.dotsSels) {
+      this.dotsSels.forEach((d) => {
+        d.selectAll("*").remove();
+      });
+    }
+
     // Get the metrics for the SVG element.
     const { size, margin } = createSvg(undefined, this.layout);
 
     // Find the range of values.
-    const extentX = this.extentX(this._data);
-    const extentY = this.extentY(this._data);
+    this.extentX = this.calcExtentX(this._data);
+    const extentY = this.calcExtentY(this._data);
 
     // Create the scalars for the data.
     this.scaleX = d3
       .scaleLinear()
       .domain([
-        this.layout.axes?.x?.minimum ?? extentX[0] ?? 0,
-        this.layout.axes?.x?.maximum ?? extentX[1] ?? 1,
+        this.layout.axes?.x?.minimum ?? this.extentX[0] ?? 0,
+        this.layout.axes?.x?.maximum ?? this.extentX[1] ?? 1,
       ])
       .range([margin.left, size.width - margin.right]);
     const minValue = this.layout.axes?.y?.minimum ?? extentY[1] ?? 0;
@@ -160,9 +190,22 @@ class ViolinPlot extends PlotWithAxis<
 
       // Setup the zoom behavior.
       if (this.zoomExt) {
+        const violinZoomExt = d3
+          .zoom<SVGSVGElement, unknown>()
+          .filter((event) => !event.button && event.type !== "dblclick")
+          .on("zoom", ({ transform }: { transform: d3.ZoomTransform }) => {
+            const scaleXZoom = transform.rescaleX(this._scaleX);
+            const scaleYZoom = transform.rescaleY(this._scaleY);
+            this.xAxis(this.xAxisSelection, scaleXZoom);
+            this.setupYAxis(transform);
+            this.xAxisGrid(this.xAxisSelection, scaleXZoom);
+            this.yAxisGrid(this.yAxisSelection, scaleYZoom);
+            this.contentSel?.attr("transform", transform.toString());
+          });
+
         this.svgSel
-          .call(this.zoomExt)
-          .call(this.zoomExt.transform, d3.zoomIdentity);
+          .call(violinZoomExt)
+          .call(violinZoomExt.transform, d3.zoomIdentity);
       }
 
       // Create the violin plot elements.
@@ -211,13 +254,10 @@ class ViolinPlot extends PlotWithAxis<
 
     const { size } = createSvg(undefined, this.layout);
 
-    // Get the bounds of the data.
-    const xExtent = this.extentX(this._data);
-    const yExtent = this.extentY(this._data);
     // Perform the zooming.
     const padding = 0.25;
-    const [xMin, xMax] = xExtent as [number, number];
-    const [yMin, yMax] = yExtent as [number, number];
+    const [xMin, xMax] = this.extentX as [number, number];
+    const [yMin, yMax] = this.extentY as [number, number];
     if (this.zoomExt) {
       this.contentSel
         .transition()
@@ -274,7 +314,7 @@ class ViolinPlot extends PlotWithAxis<
 
     const x = d3
       .scaleLinear()
-      .domain([0, histogram.length])
+      .domain([0, histogram.length - 1])
       .range([margin.left, size.width - margin.right]);
     const y = d3
       .scaleLinear()
@@ -296,7 +336,10 @@ class ViolinPlot extends PlotWithAxis<
     const histogram = d3
       .bin()
       .thresholds(threshold)(channel.values)
-      .map((bin, index) => [index, bin.length]);
+      .map((bin, index) => [index + 1, bin.length]);
+
+    histogram.unshift([0, 0]);
+    histogram.push([histogram.length, 0]);
 
     const area = this.area(channel, histogram as [number, number][]);
 
@@ -359,23 +402,118 @@ class ViolinPlot extends PlotWithAxis<
     }
   }
 
+  private calcGaussKDE(channelIndex: number) {
+    let i, j;
+    const dataSource = this._data.channels[channelIndex].values;
+    const n = dataSource.length;
+
+    const standardDeviation = (arr: number[]) => {
+      const mean = arr.reduce((acc, val) => acc + val, 0) / arr.length;
+      return Math.sqrt(
+        arr
+          .reduce(
+            (acc: number[], val) => acc.concat((val - mean) * (val - mean)),
+            []
+          )
+          .reduce((acc, val) => acc + val, 0) / arr.length
+      );
+    };
+
+    const gaussKDE = (x: number) => {
+      return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(Math.pow(x, 2) / -2);
+    };
+
+    const sigma = standardDeviation(dataSource);
+    const b = Math.pow(4 / 3 / n, 0.2) * sigma;
+
+    const minValue = this.extentX[0] ?? 0;
+    const maxValue = this.extentX[1] ?? 0;
+
+    const xiData: number[] = [];
+    for (i = 0; i <= maxValue; i++) {
+      xiData[i] = minValue + i;
+    }
+
+    const data: number[] = [];
+    for (i = 0; i < xiData.length; i++) {
+      let temp = 0;
+      for (j = 0; j < n; j++) {
+        temp = temp + gaussKDE((xiData[i] - dataSource[j]) / b);
+      }
+      data.push((1 / (n * b)) * temp);
+    }
+
+    const result: [number, number][] = [];
+    if (data.length <= 100) {
+      for (i = 0; i < data.length; i++) {
+        result.push([i, data[i]]);
+      }
+    } else {
+      const collection: number[] = [];
+      for (i = 0; i < data.length; i++) {
+        collection.push(i);
+      }
+
+      for (i = 0; i < 100; i++) {
+        const collectionIndex = Math.floor(Math.random() * collection.length);
+        const dataIndex = collection[collectionIndex];
+        result.push([dataIndex, data[dataIndex]]);
+        collection.splice(collectionIndex, 1);
+      }
+    }
+
+    return result;
+  }
+
   private drawDots(channel: IViolinChannel, index: number) {
     // Get the metrics for the SVG element.
     const { size, margin } = createSvg(undefined, this.layout);
 
+    const minValue = this.extentX[0] ?? 0;
+    const gkdes: [number, number][] = this.calcGaussKDE(index);
+
+    const halfViewHeight = (size.height - margin.bottom - margin.top) / 2;
+    const dotsExtentY = d3.extent(gkdes.map((d) => d[1]));
+    const dotsScaleY = d3
+      .scaleLinear()
+      .domain([dotsExtentY[0] ?? 0, dotsExtentY[1] ?? 1])
+      .range([
+        size.height - margin.bottom - halfViewHeight,
+        size.height - margin.bottom - size.height * 0.25,
+      ]);
+
     if (this.dotsSels) {
       this.dotsSels[index] = this.dotsSels[index]
-        .data(channel.values)
+        .data(gkdes)
         .join("circle")
         .attr("r", channel.style?.fillRadius ?? 2)
-        .attr("cx", (d) => this.scaleX(d))
-        .attr(
-          "cy",
-          () =>
-            ((Math.random() * (size.height - margin.bottom - margin.top)) / 2) *
-            0.5
-        )
+        .attr("cx", (d) => this.scaleX(minValue + d[0]))
+        .attr("cy", (d) => dotsScaleY(d[1]) - halfViewHeight - margin.top)
         .attr("fill", channel.style?.fillColor ?? "none");
+    }
+  }
+
+  /** Hide negative values in the x-axis. */
+  setupYAxis(transform: d3.ZoomTransform) {
+    // Get the metrics for the SVG element.
+    const { margin } = createSvg(undefined, this.layout);
+
+    const scaleYZoom = transform.rescaleY(this.scaleY);
+    const yAxisLeft = d3.axisLeft(scaleYZoom).tickFormat((domainValue) => {
+      return domainValue < 0 ? "" : domainValue.toString();
+    });
+    this.yAxisSelection
+      ?.attr("transform", `translate(${margin.left}, 0)`)
+      .call(yAxisLeft);
+  }
+
+  /** Reset the axes. */
+  protected resetAxis() {
+    super.resetAxis();
+
+    if (this.contentSel) {
+      const transform = d3.zoomTransform(this.contentSel.node() as Element);
+      this.setupYAxis(transform);
     }
   }
 

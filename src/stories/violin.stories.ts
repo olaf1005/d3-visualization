@@ -56,3 +56,76 @@ SimpleViolin.args = {
     },
   },
 };
+
+let interval: NodeJS.Timer | undefined = undefined;
+
+const RealtimeTemplate: Story<IViolinPlot> = (args) => {
+  // Construct the container.
+  const container = document.createElement("div");
+  container.className = "plot-container";
+
+  let i = 0;
+  const limitPoints = 1000;
+  const addNewValue = (data: IViolinPlotData) => {
+    // Generate random number between 300 and 700
+    const randomNumber = 300 + Math.random() * (700 - 300);
+    if (data.channels[0].values.length >= limitPoints) {
+      data.channels[0].values.shift();
+    }
+    data.channels[0].values.push(randomNumber);
+  };
+
+  // Set up the line plot.
+  const dataChannel: IViolinPlotData = {
+    channels: [
+      {
+        id: "test",
+        label: "label",
+        values: [],
+        showDistribution: true,
+        showBoxplot: true,
+        style: {
+          strokeColor: "#e15759",
+          fillColor: "#e15759",
+          fillRadius: 2,
+        },
+      },
+    ],
+  };
+
+  for (i = 0; i < 10; i++) {
+    addNewValue(dataChannel);
+  }
+
+  const { layout } = args;
+  const plot = new ViolinPlot(dataChannel, layout, container);
+
+  plot.render();
+
+  if (interval) {
+    clearInterval(interval);
+    interval = undefined;
+  }
+
+  interval = setInterval(() => {
+    addNewValue(dataChannel);
+    plot.data = dataChannel;
+    plot.render();
+  }, 500);
+
+  return container;
+};
+
+export const RealtimeViolin = RealtimeTemplate.bind({});
+RealtimeViolin.args = {
+  layout: {
+    axes: {
+      x: {
+        label: "Realtime Violin-X",
+      },
+      y: {
+        label: "Realtime Violin-Y",
+      },
+    },
+  },
+};
